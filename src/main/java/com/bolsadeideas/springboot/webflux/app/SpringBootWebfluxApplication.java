@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 
 import com.bolsadeideas.springboot.webflux.app.models.dao.IProductoDao;
 import com.bolsadeideas.springboot.webflux.app.models.documents.Producto;
@@ -18,6 +19,9 @@ public class SpringBootWebfluxApplication implements CommandLineRunner {
 	@Autowired
 	private IProductoDao productoDao;
 	
+	@Autowired
+	private ReactiveMongoTemplate mongoTemplate;
+	
 	private static final Logger log = LoggerFactory.getLogger(SpringBootWebfluxApplication.class);
 
 	public static void main(String[] args) {
@@ -26,6 +30,10 @@ public class SpringBootWebfluxApplication implements CommandLineRunner {
 
 	@Override
 	public void run(String... args) throws Exception {
+		
+		this.mongoTemplate.dropCollection("productos")
+			.subscribe();
+		
 		Flux.just(new Producto("Tv Panasonic LCD", 1800D), 
 				new Producto("Lavadora Mave 14Kg.", 980D),
 				new Producto("Bicicleta Montañera Aro 26", 590D),
