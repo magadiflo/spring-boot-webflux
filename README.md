@@ -108,3 +108,53 @@ Test**, es decir, hasta este punto no hemos configurado ninguna base de datos, p
 aplicación utilizó la base de datos **test** para insertar nuestros datos:
 
 ![insertando-datos-default-mongodb](./assets/insertando-datos-default-mongodb.png)
+
+## Eliminando colección de productos (drop collection)
+
+En la sección anterior implementamos el método **run()** de la interfaz funcional **CommandLineRunner** para poder
+poblar la base de datos de MongoDB con valores iniciales. Ahora, el problema es que cada vez que levantamos la
+aplicación los datos se van registrando, es decir se van duplicando los datos. Entonces para evitar eso,
+lo que haremos será que antes de poblar la base de datos con registros, primero eliminaremos todo lo que haya en la
+colección, de esa manera tendremos siempre el mismo conjunto de datos.
+
+````java
+
+@SpringBootApplication
+public class SpringBootWebfluxApplication {
+
+    /* Other code */
+    private final ReactiveMongoTemplate reactiveMongoTemplate; // (1)
+
+    public SpringBootWebfluxApplication(IProductRepository productRepository, ReactiveMongoTemplate reactiveMongoTemplate) {
+        this.productRepository = productRepository;
+        this.reactiveMongoTemplate = reactiveMongoTemplate;
+    }
+
+    @Bean
+    public CommandLineRunner run() {
+        return args -> {
+            this.reactiveMongoTemplate.dropCollection("products").subscribe(); // (2)
+
+            /* Código que puebla la colección de products */
+        };
+    }
+}
+````
+
+**DONDE**
+
+- **(1)** aplicamos inyección de dependencia vía constructor para el **ReactiveMongoTemplate**. Con esta clase podemos
+  eliminar directamente la colección **products**.
+- **(2)** usando el **ReactiveMongoTemplate** llamamos al método **dropCollection()** para eliminar la colección
+  **products**.
+
+### ReactiveMongoTemplate
+
+ReactiveMongoTemplate es una clase auxiliar que nos ayuda a incrementar nuestras consultas a la BD mediante las
+MongoOperations de manera reactiva.
+
+Implementación principal de ReactiveMongoOperations. Simplifica el uso de Reactive MongoDB y ayuda a evitar errores
+comunes. Ejecuta el flujo de trabajo central de MongoDB, dejando el código de la aplicación para proporcionar documentos
+y extraer resultados. Esta clase ejecuta consultas o actualizaciones de BSON, iniciando la iteración sobre FindPublisher
+y capturando las excepciones de MongoDB y traduciéndolas a la jerarquía de excepción genérica y más informativa definida
+en el paquete org.springframework.dao.

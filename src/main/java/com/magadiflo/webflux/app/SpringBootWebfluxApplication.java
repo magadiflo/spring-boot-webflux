@@ -8,6 +8,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import reactor.core.publisher.Flux;
 
 @SpringBootApplication
@@ -15,9 +16,11 @@ public class SpringBootWebfluxApplication {
 
     private final static Logger LOG = LoggerFactory.getLogger(SpringBootWebfluxApplication.class);
     private final IProductRepository productRepository;
+    private final ReactiveMongoTemplate reactiveMongoTemplate;
 
-    public SpringBootWebfluxApplication(IProductRepository productRepository) {
+    public SpringBootWebfluxApplication(IProductRepository productRepository, ReactiveMongoTemplate reactiveMongoTemplate) {
         this.productRepository = productRepository;
+        this.reactiveMongoTemplate = reactiveMongoTemplate;
     }
 
     public static void main(String[] args) {
@@ -27,6 +30,7 @@ public class SpringBootWebfluxApplication {
     @Bean
     public CommandLineRunner run() {
         return args -> {
+            this.reactiveMongoTemplate.dropCollection("products").subscribe();
             Flux.just(
                             new Product("Tv LG 70'", 3609.40),
                             new Product("Sony Cámara HD", 680.60),
