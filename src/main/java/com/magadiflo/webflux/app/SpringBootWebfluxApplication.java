@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import reactor.core.publisher.Flux;
 
+import java.time.LocalDateTime;
+
 @SpringBootApplication
 public class SpringBootWebfluxApplication {
 
@@ -47,9 +49,12 @@ public class SpringBootWebfluxApplication {
                             new Product("Colchón Medallón 2 plazas", 710.00),
                             new Product("Silla de oficina", 540.00)
                     )
-                    .flatMap(this.productRepository::save)
+                    .flatMap(product -> {
+                        product.setCreateAt(LocalDateTime.now());
+                        return this.productRepository.save(product);
+                    })
                     .subscribe(
-                            product -> LOG.info("Insertado: {}, {}", product.getId(), product.getName()),
+                            product -> LOG.info("Insertado: {}, {}, {}", product.getId(), product.getName(), product.getCreateAt()),
                             error -> LOG.error("Error al insertar: {}", error.getMessage()),
                             () -> LOG.info("¡Inserción completada!")
                     );

@@ -158,3 +158,57 @@ comunes. Ejecuta el flujo de trabajo central de MongoDB, dejando el código de l
 y extraer resultados. Esta clase ejecuta consultas o actualizaciones de BSON, iniciando la iteración sobre FindPublisher
 y capturando las excepciones de MongoDB y traduciéndolas a la jerarquía de excepción genérica y más informativa definida
 en el paquete org.springframework.dao.
+
+## Cambiando el nombre de la base de datos y agregando la fecha createAt
+
+Por defecto, cuando arrancamos la aplicación, los datos se van a poblar en la base de datos **test de mongoDB**, pero
+ahora nosotros crearemos nuestra propia base de datos llamada **db_spring_boot_webflux**.
+
+En el **application.properties** creamos la cadena de conexión a la base de datos de MongoDB agregándole el nombre que
+le daremos a nuestra base de datos.
+****
+
+````properties
+spring.data.mongodb.uri=mongodb://localhost:27017/db_spring_boot_webflux
+````
+
+Como nota final, si la base de datos **db_spring_boot_webflux** no está creada, al arrancar la aplicación, mongoDB
+la va a crear por nosotros.
+
+Ahora, con respecto a agregar fecha a nuestros registros, podemos usar el operador **flatMap()** para que en su interior
+poblemos con la fecha actual a cada producto que va pasando:
+
+````java
+
+@SpringBootApplication
+public class SpringBootWebfluxApplication {
+    @Bean
+    public CommandLineRunner run() {
+        return args -> {
+            this.reactiveMongoTemplate.dropCollection("products").subscribe();
+            Flux.just(/* data */)
+                    .flatMap(product -> {
+                        product.setCreateAt(LocalDateTime.now()); //<-- asignando fecha actual a cada producto
+                        return this.productRepository.save(product);
+                    });
+            /* other code */
+        };
+    }
+}
+````
+
+**IMPORTANTE**
+
+> **MongoDB almacena las horas en UTC de forma predeterminada y convierte cualquier representación de la hora local a
+> este formato.** Las aplicaciones que deben operar o informar sobre algún valor de hora local sin modificar pueden
+> almacenar la zona horaria junto con la marca de tiempo UTC y calcular la hora local original en su lógica de
+> aplicación.
+>
+> [FUENTE: MongoDB](https://www.mongodb.com/docs/manual/tutorial/model-iot-data/)
+
+Ahora, en nuestra aplicación de **Spring Boot**, nuestra base de datos **MongoDB** también está almacenando nuestra zona
+de horario local en **UTC**, pero cuando lo recuperamos con las consultas de un **MongoRepository**, realiza la
+conversión automáticamente y recupera nuestra fecha y hora correcta.
+
+![time-zone.png](./assets/time-zone.png)
+
