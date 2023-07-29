@@ -4,6 +4,25 @@ Creación del proyecto
 
 ![creacion-proyecto](./assets/creacion-proyecto.png)
 
+## Programación Reactiva
+
+La programación reactiva es un paradigma de programación orientado al flujo de datos (streams) y la propagación del
+cambio, todo de forma asíncrona.
+
+Esto quiere decir que la programación reactiva se sustenta en el patrón de diseño Observer, donde se tiene un Publisher
+y uno o más Suscribers que reciben notificaciones cuando el Publisher emite nuevos datos.
+
+En la programación reactiva, **el Publisher es el que se encarga de emitir el flujo de datos** y **propaga el cambio
+(notifica) a los Suscribers.**
+
+Por lo tanto, podemos decir que la programación reactiva se basa en 3 conceptos clave:
+
+- **Publisher:** También llamados **Observables.** Estos objetos son los que emiten el flujo de datos.
+- **Suscriber:** También llamados **Observers.** Estos objetos son a los que se les notifican los cambios en el flujo de
+  datos que emite el Publisher
+- **Schedulers:** Es el componente que administra la concurrencia. Se encarga de indicarle a los Publishers y Suscribers
+  en que thread deben ejecutarse.
+
 ## Agregando clases del modelo document y repository
 
 Cuando trabajamos con SQL creábamos entities mapeados a tablas de una base de datos relacional. Ahora, como estamos
@@ -281,3 +300,36 @@ El html usando Thymeleaf sería el siguiente (qu)
 Finalmente, al ejecutar la aplicación veremos el siguiente resultado:
 
 ![listado-de-productos-thymeleaf](./assets/listado-de-productos-thymeleaf.png)
+
+## Subscribiendo otro Observador y modificando el Stream Reactivo
+
+**(1)** Crearemos un nuevo **observer (suscriber)** que se subscribirá al **observable (publisher)** definido en la
+variable **productFlux** para mostrar los datos en consola, este sería nuestro segundo subscriptor, el primero es
+nuestra vista de Thymeleaf que también se encuentra subscrito por defecto a dicho observable.
+
+Además, utilizamos el operador **map()** solo para hacer una modificación a cada elemento del flujo:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    private final static Logger LOG = LoggerFactory.getLogger(ProductController.class);
+    /* omitted code */
+
+    @GetMapping(path = {"/", "/list"})
+    public String list(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                });
+
+        productFlux.subscribe(product -> LOG.info(product.getName())); // (1)
+
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list";
+    }
+}
+````
