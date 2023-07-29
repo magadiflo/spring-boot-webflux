@@ -212,3 +212,72 @@ conversión automáticamente y recupera nuestra fecha y hora correcta.
 
 ![time-zone.png](./assets/time-zone.png)
 
+## Creando controlador y vista reactivos
+
+Crearemos un controlador del tipo **@Controller**, ya que nuestras vistas serán renderizadas en plantillas html usando
+**thymeleaf**.
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    private final IProductRepository productRepository;
+
+    public ProductController(IProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @GetMapping(path = {"/", "/list"})
+    public String list(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll();
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list";
+    }
+}
+````
+
+Como observamos en el código anterior, **en ningún momento estamos haciendo el subscribe() del flux de productos para
+empezar a recibir los datos.** Nosotros no debemos preocuparnos por eso, **quien se subscribirá al flux será la vista de
+Thymeleaf**, él lo hará por nosotros.
+
+El html usando Thymeleaf sería el siguiente (qu)
+
+````html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${title}"></title>
+    <!-- link to bootstrap -->
+</head>
+<body>
+<main class="container">
+    <h1 th:text="${title}" class="my-3 border-bottom"></h1>
+    <table class="table table-striped table-hover">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Precio</th>
+            <th>Creación</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="product: ${products}">
+            <td th:text="${product.id}"></td>
+            <td th:text="${product.name}"></td>
+            <td th:text="${product.price}"></td>
+            <td th:text="${product.createAt}"></td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>
+````
+
+Finalmente, al ejecutar la aplicación veremos el siguiente resultado:
+
+![listado-de-productos-thymeleaf](./assets/listado-de-productos-thymeleaf.png)
