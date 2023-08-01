@@ -417,3 +417,50 @@ configuración iremos mostrando cada 2 elementos en la web.
 La imagen anterior nos muestra que **la web se está cargando**, pero que mientras lo hace, va pintando cada 2 elementos
 según se van emitiendo los elementos del flux.
 
+## Modo Chunked para manejar la contrapresión
+
+Con el modo chunked establecemos un límite, **un tamaño máximo para el chunked, es decir para el buffer, pero en bytes**
+ya no con un número de elementos como lo hicimos en la sección anterior, donde le definimos al buffer 2 elementos.
+
+Para usar el chunked, agregamos la siguiente configuración en el application.properties, donde se emitirán los elementos
+de 1024 bytes en 1024 bytes:
+
+````properties
+spring.thymeleaf.reactive.max-chunk-size=1024
+````
+
+El endpoint que ejecutaremos será al endpoint del list:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+
+    @GetMapping(path = "/list-full")
+    public String listFull(Model model) {
+        ThymeleafReactiveViewResolver viewResolver = new ThymeleafReactiveViewResolver();
+        viewResolver.setResponseMaxChunkSizeBytes(1024);
+
+
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                })
+                .repeat(5000); //<-- Repetimos 5000 veces el flujo actual
+
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list";
+    }
+}
+````
+
+Listo, con esto lo que deberíamos observar sería que **cuando se intente ingresar por el navegador a la url**
+``http://localhost:8080/products/list-full`` debería ir imprimiendo la lista de productos de manera fragmentada, es
+decir, de 1024bytes en 1024bytes.
+
+**NOTA**
+> En mi caso, como estoy trabajando con Spring Boot 3 y Spring Framework 6, no estoy evidenciando el
+> comportamiento que muestra Andrés Guzmán, no he investigado el porqué sucede esto, pero lo dejaré anotado.
