@@ -333,3 +333,87 @@ public class ProductController {
     }
 }
 ````
+
+## Modo Reactive Data Driver para manejar la contrapresión
+
+**Comportamiento por defecto:** Supongamos que tenemos muchos registros que serán mostrados en pantalla y experimentamos
+un retraso de un segundo. Para configurar dicho retraso utilizaremos el operador **delayElements()** de flux para
+decirle que se demorará en emitir cada elemento 1 segundo:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+
+    @GetMapping(path = "/list-data-driver")
+    public String listDataDriver(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                })
+                .delayElements(Duration.ofSeconds(1)); // <-- Configurando retraso de 1 segundo
+
+        productFlux.subscribe(product -> LOG.info(product.getName()));
+
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list";
+    }
+}
+````
+
+Ejecutamos la aplicación y observamos el comportamiento de este nuevo endpoint:
+
+![cargando-sin-contrapresion](./assets/cargando-sin-contrapresion.png)
+
+La imagen anterior nos muestra que se está cargando la página correspondiente al endpoint. **El tiempo que se demora
+realizando esa carga es igual al número de elementos que el flux emite**, en nuestro caso tenemos 14 elementos y
+cada elemento le toma 1 segundo en cargar (por el delay que pusimos), por lo tanto, **el tiempo que le toma en cargar
+a nuestra página es de 14 segundos.**
+
+El mismo comportamiento lo podemos observar en el log, donde los elementos se van cargando cada 1 segundo, en la
+imagen solo se han cargado 4 elementos (4 segundos). Una vez que finaliza la emisión tendremos pintada todos los
+elementos en la web:
+
+![cargando-sin-contrapresion-log](./assets/cargando-sin-contrapresion-log.png)
+
+Pero, qué pasa si tenemos 1000 elementos, **¿tendremos que esperar 1000 segundos?**. Si lo dejamos tal cual está en el
+ejemplo anterior sí se demoraría los 1000 segundos, pero podemos evitar ese comportamiento **configurando el tamaño del
+buffer que se irán emitiendo, esto gracias al Reactive Data Driver que es una variable de contexto de la lista,**
+es un controlador que maneja internamente eventos con los datos del stream.
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+
+    @GetMapping(path = "/list-data-driver")
+    public String listDataDriver(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                })
+                .delayElements(Duration.ofSeconds(1));
+
+        productFlux.subscribe(product -> LOG.info(product.getName()));
+
+        model.addAttribute("products", new ReactiveDataDriverContextVariable(productFlux, 2)); //<-- (1) Configuración del buffer
+        model.addAttribute("title", "Listado de productos");
+        return "list";
+    }
+}
+````
+
+Tan solo agregando esta clase **(1)** le podemos configurar **cada cuántos elementos se tienen que enviar a la web para
+que se muestren** y no esperar a que se hayan emitido todos para recién mostrarlos en la web. En pocas palabras con esa
+configuración iremos mostrando cada 2 elementos en la web.
+
+![cargando-con-contrapresion](./assets/cargando-con-contrapresion.png)
+
+La imagen anterior nos muestra que **la web se está cargando**, pero que mientras lo hace, va pintando cada 2 elementos
+según se van emitiendo los elementos del flux.
+
