@@ -67,4 +67,18 @@ public class ProductController {
         model.addAttribute("title", "Listado de productos");
         return "list";
     }
+
+    @GetMapping(path = "/list-chunked")
+    public String listChunked(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                })
+                .repeat(5000);
+
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list-chunked";
+    }
 }

@@ -423,7 +423,8 @@ Con el modo chunked establecemos un límite, **un tamaño máximo para el chunke
 ya no con un número de elementos como lo hicimos en la sección anterior, donde le definimos al buffer 2 elementos.
 
 Para usar el chunked, agregamos la siguiente configuración en el application.properties, donde se emitirán los elementos
-de 1024 bytes en 1024 bytes:
+de 1024 bytes en 1024 bytes. Ahora, si solo dejamos esta configuración, el **chunk** se aplicarán a todas las vistas,
+a todos los templates de nuestro proyecto:
 
 ````properties
 spring.thymeleaf.reactive.max-chunk-size=1024
@@ -463,4 +464,71 @@ decir, de 1024bytes en 1024bytes.
 
 **NOTA**
 > En mi caso, como estoy trabajando con Spring Boot 3 y Spring Framework 6, no estoy evidenciando el
-> comportamiento que muestra Andrés Guzmán, no he investigado el porqué sucede esto, pero lo dejaré anotado.
+> comportamiento que muestra Andrés Guzmán, no he investigado el porqué sucede esto, pero lo dejaré anotado, ya que
+> mi intención es trabajar con Api Rest Reactivos, y este tema de Thymeleaf solo es para tener conocimiento de su
+> funcionamiento
+
+## Modo Chunked view names
+
+Si queremos que la **contrapresión solo se aplique a determinadas vistas**, podemos utilizar una configuración adicional
+en nuestro **application.properties**:
+
+````properties
+## other properties
+spring.thymeleaf.reactive.chunked-mode-view-names=list-chunked
+````
+
+Donde el **list-chunked corresponde a la vista template que se va a renderizar**. Por lo tanto, crearemos un nuevo
+controlador que nos renderizará la plantilla de thymeleaf **list-chunked**:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+
+    @GetMapping(path = "/list-chunked")
+    public String listChunked(Model model) {
+        Flux<Product> productFlux = this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                })
+                .repeat(5000);
+
+        model.addAttribute("products", productFlux);
+        model.addAttribute("title", "Listado de productos");
+        return "list-chunked"; //<-- Plantilla thymeleaf que aplicará la contrapresión. Mismo nombre que está en el archivo de configuración
+    }
+}
+````
+
+Luego, en el directorio **/resources/templates/** crearemos una nueva plantilla html de thymeleaf, quien aplicará la
+contrapresión. La plantilla será el mismo que hemos venido usando hasta ahora:
+
+````html
+<!-- more tags -->
+<main class="container">
+    <h1 th:text="${title}" class="my-3 border-bottom"></h1>
+    <table class="table table-striped table-hover">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Precio</th>
+            <th>Creación</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="product: ${products}">
+            <td th:text="${product.id}"></td>
+            <td th:text="${product.name}"></td>
+            <td th:text="${product.price}"></td>
+            <td th:text="${product.createAt}"></td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+<!-- more tags -->
+````
