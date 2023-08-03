@@ -532,3 +532,41 @@ contrapresión. La plantilla será el mismo que hemos venido usando hasta ahora:
 </main>
 <!-- more tags -->
 ````
+
+## API REST en WebFlux
+
+Crearemos un api rest utilizando programación reactiva.
+
+````java
+
+@RestController
+@RequestMapping(path = "/api/v1/products")
+public class ProductRestController {
+    private final static Logger LOG = LoggerFactory.getLogger(ProductRestController.class);
+    private final IProductRepository productRepository;
+
+    public ProductRestController(IProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @GetMapping
+    public Flux<Product> listProducts() { // (1)
+        return this.productRepository.findAll()
+                .doOnNext(product -> LOG.info(product.getName())); // (2)
+    }
+
+    @GetMapping(path = "/{id}")
+    public Mono<Product> showProduct(@PathVariable String id) { // (3)
+        return this.productRepository.findById(id)
+                .doOnNext(product -> LOG.info(product.getName()));
+    }
+
+}
+````
+
+**(2)** doOnNext(), dispara efecto secundario, similar al tap() del RxJs. **Es importante tener en cuenta que doOnNext()
+no modifica el flujo de datos original.** En este caso, estamos usando el **doOnNext()** solo para imprimir los
+resultados en pantalla y ver los elementos que se van emitiendo por el flujo.
+
+Listo, como observamos, tenemos dos endpoints, el primero **(1)** retorna un Flux de productos, mientras que el tercero
+**(3)** retorna un Mono de un solo producto.
