@@ -570,3 +570,77 @@ resultados en pantalla y ver los elementos que se van emitiendo por el flujo.
 
 Listo, como observamos, tenemos dos endpoints, el primero **(1)** retorna un Flux de productos, mientras que el tercero
 **(3)** retorna un Mono de un solo producto.
+
+---
+
+# CRUD con Thymeleaf Reactivo
+
+---
+
+## Creando el componente service para los productos
+
+Crearemos el servicio que posteriormente será inyectado en el controlador:
+
+````java
+public interface IProductService {
+    Flux<Product> findAll();
+
+    Flux<Product> findAllWithNameUpperCase();
+
+    Flux<Product> findAllWithNameUpperCaseAndRepeat();
+
+    Mono<Product> findById(String id);
+
+    Mono<Product> saveProduct(Product product);
+
+    Mono<Void> delete(Product product);
+} 
+````
+
+````java
+
+@Service
+public class ProductServiceImpl implements IProductService {
+    private final IProductRepository productRepository;
+
+    public ProductServiceImpl(IProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @Override
+    public Flux<Product> findAll() {
+        return this.productRepository.findAll();
+    }
+
+    @Override
+    public Flux<Product> findAllWithNameUpperCase() {
+        return this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                });
+    }
+
+    @Override
+    public Flux<Product> findAllWithNameUpperCaseAndRepeat() {
+        return this.findAllWithNameUpperCase().repeat(5000);
+    }
+
+    @Override
+    public Mono<Product> findById(String id) {
+        return this.productRepository.findById(id);
+    }
+
+    @Override
+    public Mono<Product> saveProduct(Product product) {
+        return this.productRepository.save(product);
+    }
+
+    @Override
+    public Mono<Void> delete(Product product) {
+        return this.productRepository.delete(product);
+    }
+}
+````
+
+En el controlador reemplazamos el **IProductRepository** por nuestro **IProductService**.

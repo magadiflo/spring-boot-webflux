@@ -1,7 +1,7 @@
 package com.magadiflo.webflux.app.controllers;
 
 import com.magadiflo.webflux.app.models.documents.Product;
-import com.magadiflo.webflux.app.models.repositories.IProductRepository;
+import com.magadiflo.webflux.app.models.services.IProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -17,20 +17,15 @@ import java.time.Duration;
 @RequestMapping(path = {"/", "/products"})
 public class ProductController {
     private final static Logger LOG = LoggerFactory.getLogger(ProductController.class);
-    private final IProductRepository productRepository;
+    private final IProductService productService;
 
-    public ProductController(IProductRepository productRepository) {
-        this.productRepository = productRepository;
+    public ProductController(IProductService productService) {
+        this.productService = productService;
     }
 
     @GetMapping(path = {"/", "/list"})
     public String list(Model model) {
-        Flux<Product> productFlux = this.productRepository.findAll()
-                .map(product -> {
-                    product.setName(product.getName().toUpperCase());
-                    return product;
-                });
-
+        Flux<Product> productFlux = this.productService.findAllWithNameUpperCase();
         productFlux.subscribe(product -> LOG.info(product.getName())); // (1)
 
         model.addAttribute("products", productFlux);
@@ -40,11 +35,8 @@ public class ProductController {
 
     @GetMapping(path = "/list-data-driver")
     public String listDataDriver(Model model) {
-        Flux<Product> productFlux = this.productRepository.findAll()
-                .map(product -> {
-                    product.setName(product.getName().toUpperCase());
-                    return product;
-                })
+        Flux<Product> productFlux = this.productService
+                .findAllWithNameUpperCase()
                 .delayElements(Duration.ofSeconds(1));
 
         productFlux.subscribe(product -> LOG.info(product.getName()));
@@ -56,12 +48,7 @@ public class ProductController {
 
     @GetMapping(path = "/list-full")
     public String listFull(Model model) {
-        Flux<Product> productFlux = this.productRepository.findAll()
-                .map(product -> {
-                    product.setName(product.getName().toUpperCase());
-                    return product;
-                })
-                .repeat(5000); //<-- Repetimos 5000 veces el flujo actual
+        Flux<Product> productFlux = this.productService.findAllWithNameUpperCaseAndRepeat();
 
         model.addAttribute("products", productFlux);
         model.addAttribute("title", "Listado de productos");
@@ -70,12 +57,7 @@ public class ProductController {
 
     @GetMapping(path = "/list-chunked")
     public String listChunked(Model model) {
-        Flux<Product> productFlux = this.productRepository.findAll()
-                .map(product -> {
-                    product.setName(product.getName().toUpperCase());
-                    return product;
-                })
-                .repeat(5000);
+        Flux<Product> productFlux = this.productService.findAllWithNameUpperCaseAndRepeat();
 
         model.addAttribute("products", productFlux);
         model.addAttribute("title", "Listado de productos");
