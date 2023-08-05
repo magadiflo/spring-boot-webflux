@@ -644,3 +644,31 @@ public class ProductServiceImpl implements IProductService {
 ````
 
 En el controlador reemplazamos el **IProductRepository** por nuestro **IProductService**.
+
+## Agregando métodos handler en el controlador: crear y guardar
+
+Crearemos el método handler para mostrar el formulario. **Hasta este momento nuestros métodos handler solo han retornado
+un String correspondiente al nombre del template a renderizar**, pero ahora, **haremos que se retorne la vista de forma
+reactiva**, es decir retornando un ``Mono<String>``:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form")
+    public Mono<String> create(Model model) {
+        model.addAttribute("product", new Product());
+        model.addAttribute("title", "Formulario de producto");
+        return Mono.just("form");
+    }
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(Product product) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado [id: {}, nombre: {}]", product.getId(), p.getName()))
+                .thenReturn("redirect:/list");
+    }
+}
+````

@@ -7,9 +7,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.thymeleaf.spring6.context.webflux.ReactiveDataDriverContextVariable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
@@ -62,5 +64,19 @@ public class ProductController {
         model.addAttribute("products", productFlux);
         model.addAttribute("title", "Listado de productos");
         return "list-chunked";
+    }
+
+    @GetMapping(path = "/form")
+    public Mono<String> create(Model model) {
+        model.addAttribute("product", new Product());
+        model.addAttribute("title", "Formulario de producto");
+        return Mono.just("form");
+    }
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(Product product) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado [id: {}, nombre: {}]", product.getId(), p.getName()))
+                .thenReturn("redirect:/list");
     }
 }
