@@ -38,7 +38,7 @@ public class Product {
     private String id;
     private String name;
     private Double price;
-    private LocalDateTime createAt;
+    private LocalDate createAt;
 
     public Product() {
     }
@@ -207,7 +207,7 @@ public class SpringBootWebfluxApplication {
             this.reactiveMongoTemplate.dropCollection("products").subscribe();
             Flux.just(/* data */)
                     .flatMap(product -> {
-                        product.setCreateAt(LocalDateTime.now()); //<-- asignando fecha actual a cada producto
+                        product.setCreateAt(LocalDate.now()); //<-- asignando fecha actual a cada producto
                         return this.productRepository.save(product);
                     });
             /* other code */
@@ -672,3 +672,51 @@ public class ProductController {
     }
 }
 ````
+
+## Añadiendo la vista form
+
+Crearemos dentro del directorio **/resources/templates/** el archivo html que contendrá nuestro formulario para agregar
+productos. Nuestro formulario tendrá la siguiente configuración:
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <div class="mb-3">
+        <label for="name" class="form-label">Nombre</label>
+        <input type="text" class="form-control" id="name" th:field="*{name}">
+    </div>
+    <div class="mb-3">
+        <label for="price" class="form-label">Precio</label>
+        <input type="number" class="form-control" id="price" th:field="*{price}">
+    </div>
+    <div class="mb-3">
+        <label for="createAt" class="form-label">Fecha</label>
+        <input type="date" class="form-control" id="createAt" th:field="*{createAt}">
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+</form>
+````
+
+Como observamos, el ``th:action="@{/products/form}"`` nos permite redirigir el formulario cuando se haga submit a la uri
+``/products/form``. Notar que todo enlace en thymeleaf debe iniciar con un ``@``.
+
+Otro punto importante a observar es ``th:object="${product}"``, de esta manera estamos enlazando el objeto **product**
+que se envía desde la ruta ``GET /form`` con nuestro formulario. Ahora, para mapear cada atributo a su input
+correspondiente, es que utilizamos ``th:field="*{name}"``, dentro de las llaves va el nombre de la propiedad al cual
+enlazaremos el input, en este ejemplo estamos enlazando la propiedad **name**.
+
+Cuando ejecutemos la aplicación, llenemos los datos en el formulario y le demos en **Guardar**, seremos redireccionados
+a ``th:action="@{/products/form}"``, cuyos datos serán recibidos por el controlador **ProductController** y su método
+handler ``POST /form``, quien realizará el guardado del producto en la BD.
+
+**IMPORTANTE**
+
+> Andrés Guzmán definió el atributo createAt del Producto como un Date de java.util. Por lo que, al vincular el atributo
+> **th:field="*{createAt}"** con el input del tipo **date** ocurría un error en el formato de la fecha. Para
+> solucionarlo se optó por agregar la anotación **@DateTimeFormat(pattern = "yyyy-MM-dd")** sobre el campo **Date** del
+> modelo Producto.
+>
+> En mi caso, aprovechando las nuevas características de java, utilizo en el atributo createAt el tipo de dato
+> **LocalDate**, de esta manera no tengo ningún problema al vincularlo al input html, ni hay la necesidad de agregar
+> ninguna anotación, es decir, automáticamente la fecha seleccionada con el input date del html se mapea al atributo
+> **createAt del tipo LocalDate.**

@@ -76,7 +76,7 @@ public class ProductController {
     @PostMapping(path = "/form")
     public Mono<String> save(Product product) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
         return this.productService.saveProduct(product)
-                .doOnNext(p -> LOG.info("Producto guardado [id: {}, nombre: {}]", product.getId(), p.getName()))
+                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
                 .thenReturn("redirect:/list");
     }
 }

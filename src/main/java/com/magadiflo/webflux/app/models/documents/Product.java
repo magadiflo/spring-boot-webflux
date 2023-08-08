@@ -3,7 +3,7 @@ package com.magadiflo.webflux.app.models.documents;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Document(collection = "products")
 public class Product {
@@ -11,7 +11,7 @@ public class Product {
     private String id;
     private String name;
     private Double price;
-    private LocalDateTime createAt;
+    private LocalDate createAt;
 
     public Product() {
     }
@@ -45,11 +45,22 @@ public class Product {
         this.price = price;
     }
 
-    public LocalDateTime getCreateAt() {
+    public LocalDate getCreateAt() {
         return createAt;
     }
 
-    public void setCreateAt(LocalDateTime createAt) {
+    public void setCreateAt(LocalDate createAt) {
         this.createAt = createAt;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Product{");
+        sb.append("id='").append(id).append('\'');
+        sb.append(", name='").append(name).append('\'');
+        sb.append(", price=").append(price);
+        sb.append(", createAt=").append(createAt);
+        sb.append('}');
+        return sb.toString();
     }
 }

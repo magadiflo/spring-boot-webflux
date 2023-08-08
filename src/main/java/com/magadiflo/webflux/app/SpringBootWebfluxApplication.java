@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import reactor.core.publisher.Flux;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @SpringBootApplication
@@ -50,7 +51,7 @@ public class SpringBootWebfluxApplication {
                             new Product("Silla de oficina", 540.00)
                     )
                     .flatMap(product -> {
-                        product.setCreateAt(LocalDateTime.now());
+                        product.setCreateAt(LocalDate.now());
                         return this.productRepository.save(product);
                     })
                     .subscribe(
