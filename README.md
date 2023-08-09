@@ -38,6 +38,8 @@ public class Product {
     private String id;
     private String name;
     private Double price;
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    //<-- Para que la fecha se muestre correctamente en el input date o se obtenga de él en ese formado yyyy-MM-dd
     private LocalDate createAt;
 
     public Product() {
@@ -687,7 +689,7 @@ productos. Nuestro formulario tendrá la siguiente configuración:
     </div>
     <div class="mb-3">
         <label for="price" class="form-label">Precio</label>
-        <input type="number" class="form-control" id="price" th:field="*{price}">
+        <input type="number" step="0.10" class="form-control" id="price" th:field="*{price}">
     </div>
     <div class="mb-3">
         <label for="createAt" class="form-label">Fecha</label>
@@ -720,3 +722,91 @@ handler ``POST /form``, quien realizará el guardado del producto en la BD.
 > **LocalDate**, de esta manera no tengo ningún problema al vincularlo al input html, ni hay la necesidad de agregar
 > ninguna anotación, es decir, automáticamente la fecha seleccionada con el input date del html se mapea al atributo
 > **createAt del tipo LocalDate.**
+
+## Agregando método handler editar en el Controlador
+
+Utilizaremos el mismo formulario de agregar productos para poder editarlos, pero es necesario que tengamos el
+identificador del producto que vamos a editar, caso contrario, JPA al no detectar el id, o al ser el id null, en vez de
+editar el producto lo terminará agregando. Por lo tanto, cuando mandemos el formulario para editar, debemos asegurarnos
+de que también enviemos el id del producto. Podemos implementar 1 de 2 soluciones.
+
+Antes de implementar las soluciones, observemos el método handler que creamos para poder abrir el formulario html
+con el producto que será editado:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form/{id}")
+    public Mono<String> edit(@PathVariable String id, Model model) {
+        Mono<Product> productMono = this.productService.findById(id)
+                .doOnNext(product -> LOG.info(product.toString()))
+                .defaultIfEmpty(new Product());
+        model.addAttribute("product", productMono);
+        model.addAttribute("title", "Editar producto");
+        return Mono.just("form");
+    }
+}
+````
+
+La **primera es definiendo un input del tipo hidden** que contendrá el identificador del producto que se está editando:
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
+</form>
+````
+
+La **segunda forma es usar sesiones de Spring**, pero es una sesión especial, es **solo para manejar en el formulario.**
+
+Si observamos en el código siguiente, veremos la anotación **@SessionAttributes(value = "product")**, esta anotación
+indica los atributos de sesión que utiliza el controlador **ProductController**, en este caso el único atributo de
+sesión del controlador que definimos es **product**. Este nombre **product** corresponde con el objeto que se pasa al
+formulario.
+
+Cada vez que se llama a los métodos handler **create() o edit()**, estos métodos nos mostrarán el formulario html para
+poder crear o editar, respectivamente. Además, desde esos métodos, se pasa al formulario el objeto 'product' y cada
+vez que eso ocurra, como tenemos anotado el controlador con **@SessionAttributes(value = "product")**, el objeto
+'product' se guardará en la sesión http de forma momentánea estando disponible en el formulario. Además, solo se
+actualizarán los campos que editemos en el formulario. El id estará presente, pero a nivel de sesión, ya que como no
+tenemos un input que guarde el id, no lo podremos ver en la web, pero sí estará presente en la sesión.
+
+Luego de enviar el formulario al método **save()**, ya sea para actualizar o guardar un producto, debemos eliminar la
+sesión con **.setComplete()**.
+
+````java
+
+@SessionAttributes(value = "product") //<-- Atributo de sesión 'product' del formulario 
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form")
+    public Mono<String> create(Model model) {
+        model.addAttribute("product", new Product()); //<-- No solo se pasa al formulario sino que se guarda en la sessión http por la anotación @SessionAttributes(value = "product")
+        model.addAttribute("title", "Formulario de producto");
+        return Mono.just("form");
+    }
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(Product product, SessionStatus sessionStatus) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+        sessionStatus.setComplete(); //<-- Marque el procesamiento de la sesión del controlador actual como completo, lo que permite la limpieza de los atributos de la sesión.
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list");
+    }
+
+    @GetMapping(path = "/form/{id}")
+    public Mono<String> edit(@PathVariable String id, Model model) {
+        Mono<Product> productMono = this.productService.findById(id)
+                .doOnNext(product -> LOG.info(product.toString()))
+                .defaultIfEmpty(new Product());
+        model.addAttribute("product", productMono); //<-- No solo se pasa al formulario sino que se guarda en la sessión http por la anotación @SessionAttributes(value = "product")
+        model.addAttribute("title", "Editar producto");
+        return Mono.just("form");
+    }
+}
+````

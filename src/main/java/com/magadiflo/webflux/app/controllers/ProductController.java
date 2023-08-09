@@ -6,15 +6,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.support.SessionStatus;
 import org.thymeleaf.spring6.context.webflux.ReactiveDataDriverContextVariable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
+@SessionAttributes(value = "product")
 @Controller
 @RequestMapping(path = {"/", "/products"})
 public class ProductController {
@@ -74,9 +74,20 @@ public class ProductController {
     }
 
     @PostMapping(path = "/form")
-    public Mono<String> save(Product product) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+    public Mono<String> save(Product product, SessionStatus sessionStatus) {
+        sessionStatus.setComplete();
         return this.productService.saveProduct(product)
                 .doOnNext(p -> LOG.info("Producto guardado: {}", p))
                 .thenReturn("redirect:/list");
+    }
+
+    @GetMapping(path = "/form/{id}")
+    public Mono<String> edit(@PathVariable String id, Model model) {
+        Mono<Product> productMono = this.productService.findById(id)
+                .doOnNext(product -> LOG.info(product.toString()))
+                .defaultIfEmpty(new Product());
+        model.addAttribute("product", productMono);
+        model.addAttribute("title", "Editar producto");
+        return Mono.just("form");
     }
 }
