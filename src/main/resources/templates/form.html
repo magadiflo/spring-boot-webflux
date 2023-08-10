@@ -11,7 +11,7 @@
     <h1 th:text="${title}" class="my-3 border-bottom"></h1>
     <a th:href="@{/list}">Listar productos</a>
     <form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
-        <!--<input type="hidden" th:if="${pro duct.id != null}" th:field="*{id}">-->
+        <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
         <div class="mb-3">
             <label for="name" class="form-label">Nombre</label>
             <input type="text" class="form-control" id="name" th:field="*{name}">
@@ -24,7 +24,7 @@
             <label for="createAt" class="form-label">Fecha</label>
             <input type="date" class="form-control" id="createAt" th:field="*{createAt}">
         </div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="submit" class="btn btn-primary" th:text="${btnText}"></button>
     </form>
 </main>
 

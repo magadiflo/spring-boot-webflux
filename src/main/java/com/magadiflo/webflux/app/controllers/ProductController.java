@@ -70,6 +70,7 @@ public class ProductController {
     public Mono<String> create(Model model) {
         model.addAttribute("product", new Product());
         model.addAttribute("title", "Formulario de producto");
+        model.addAttribute("btnText", "Crear");
         return Mono.just("form");
     }
 
@@ -88,6 +89,27 @@ public class ProductController {
                 .defaultIfEmpty(new Product());
         model.addAttribute("product", productMono);
         model.addAttribute("title", "Editar producto");
+        model.addAttribute("btnText", "Editar");
         return Mono.just("form");
+    }
+
+    @GetMapping(path = "/form-v2/{id}")
+    public Mono<String> editV2(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(product -> {
+                    LOG.info(product.toString());
+                    model.addAttribute("product", product);
+                    model.addAttribute("title", "Editar producto");
+                    model.addAttribute("btnText", "Editar v2");
+                })
+                .defaultIfEmpty(new Product())
+                .flatMap(product -> {
+                    if (product.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.just(product);
+                })
+                .thenReturn("form")
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto"));
     }
 }

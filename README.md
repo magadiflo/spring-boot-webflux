@@ -810,3 +810,58 @@ public class ProductController {
     }
 }
 ````
+
+## Añadiendo otra forma del editar
+
+Crearemos otro método editar, pero esta vez implementaremos el método en un solo flujo, pero eso nos provocaría cierto
+error, pero ya lo veremos luego, por ahora veamos la implementación del nuevo método editar:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form-v2/{id}")
+    public Mono<String> editV2(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(product -> {
+                    LOG.info(product.toString());
+                    model.addAttribute("product", product);
+                    model.addAttribute("title", "Editar producto");
+                    model.addAttribute("btnText", "Editar v2");
+                })
+                .defaultIfEmpty(new Product()) //<-- Si el findById no encuentra el producto entra en este método donde retornamos un nuevo producto
+                .flatMap(product -> {
+                    if (product.getId() == null) { //<-- Si hemos retornado un nuevo producto su id es null, por lo tanto, el producto no ha sido encontrado, entramos al if y lanzamos la excepción
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.just(product); // Si el producto viene con su id, significa que el findById sí lo encontró
+                })
+                .thenReturn("form") // Finalmente retornamos un Mono<String>, es decir nuestro formulario html
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto")); //<-- Si entró al if anterior y lanzamos el Mono.error(), este método lo captura. Hacemos un redirecto mandando un mensaje de error.
+    }
+}
+````
+
+A diferencia de nuestro primer método **edit()**, este segundo método **editV2()** realiza todo el proceso en un solo
+flujo. **La desventaja** es que ahora ya no podremos usar el **@SessionAttributes(value = "product")**, es decir, la
+session no se aplicará dentro del flujo, por consiguiente el atributo **product** no se guardará en la sesión, aunque
+sí se enviará al formulario para editar gracias al **model.addAttribute("product", product)**, pero no estará disponible
+en la sesión.
+
+Recordemos que usábamos en el método **edit()** el **@SessionAttributes()** para guardar el producto y usar su id para
+poder editar el producto en la base de datos. Entonces, como ahora en el método **editV2()** no se está guardando el
+producto en la sesión, cuando demos en guardar, se registrará un nuevo producto más no lo editará.
+
+Para solucionar ese problema, debemos agregar un ``<input type="hidden">`` que contendrá el valor del id para poder
+editar.
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
+    <!-- other tags -->
+</form>
+````
