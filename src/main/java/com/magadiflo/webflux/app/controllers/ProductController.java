@@ -125,4 +125,21 @@ public class ProductController {
                 .thenReturn("form")
                 .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto"));
     }
+
+    @GetMapping(path = "/delete/{id}")
+    public Mono<String> delete(@PathVariable String id) {
+        return this.productService.findById(id)
+                .defaultIfEmpty(new Product())
+                .flatMap(product -> {
+                    if (product.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto a eliminar"));
+                    }
+                    LOG.info("Producto a eliminar: {}", product);
+                    return Mono.just(product);
+                })
+                .flatMap(this.productService::delete)
+                .then(Mono.just("redirect:/list?success=Producto+eliminado+con+éxito"))
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto"));
+    }
+
 }

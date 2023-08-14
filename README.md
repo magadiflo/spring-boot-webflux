@@ -1016,3 +1016,45 @@ Finalmente, debemos modificar el formulario html para poder mostrar los errores:
     <div th:if="${#fields.hasErrors('price')}" th:errors="*{price}"></div>
 </div>
 ````
+
+## Agregando método eliminar en el Controlador
+
+Creamos el método delete en el controlador:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/delete/{id}")
+    public Mono<String> delete(@PathVariable String id) {
+        return this.productService.findById(id)
+                .defaultIfEmpty(new Product())
+                .flatMap(product -> {
+                    if (product.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto a eliminar")); // (1)
+                    }
+                    LOG.info("Producto a eliminar: {}", product);
+                    return Mono.just(product);
+                })
+                .flatMap(this.productService::delete)
+                .then(Mono.just("redirect:/list?success=Producto+eliminado+con+éxito"))
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto")); // (2)
+    }
+}
+````
+
+**(1)** si en ese punto se lanza la excepción con un **Mono.error()** en el punto **(2)** se captura ese error lanzado y
+se determina qué hacer, en nuestro caso si ocurre una excepción haremos un redireccionamiento.
+
+Finalmente, desde el listado html agregamos un botón para poder llamar a este endpoint:
+
+````html
+
+<td>
+    <a th:href="@{/delete/} + ${product.id}" onclick="return confirm('¿Seguro que desea eliminar?')"
+       class="btn btn-sm btn-danger">eliminar</a>
+</td>
+````

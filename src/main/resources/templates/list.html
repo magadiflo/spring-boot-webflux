@@ -10,8 +10,10 @@
 <main class="container">
     <h1 th:text="${title}" class="my-3 border-bottom"></h1>
     <a th:href="@{/form}">Agregar Producto</a>
-    <div class="alert alert-danger" th:if="${param.error != null and #strings.length(param.error) > 0}" th:text="${param.error}"></div>
-    <div class="alert alert-success" th:if="${param.success != null and #strings.length(param.success) > 0}" th:text="${param.success}"></div>
+    <div class="alert alert-danger" th:if="${param.error != null and #strings.length(param.error) > 0}"
+         th:text="${param.error}"></div>
+    <div class="alert alert-success" th:if="${param.success != null and #strings.length(param.success) > 0}"
+         th:text="${param.success}"></div>
     <table class="table table-striped table-hover">
         <thead>
         <tr>
@@ -30,6 +32,9 @@
             <td th:text="${product.createAt}"></td>
             <td><a th:href="@{/form/} + ${product.id}">editar</a></td>
             <td><a th:href="@{/form-v2/} + ${product.id}">editar v2</a></td>
+            <td><a th:href="@{/delete/} + ${product.id}" onclick="return confirm('¿Seguro que desea eliminar?')"
+                   class="btn btn-sm btn-danger">eliminar</a>
+            </td>
         </tr>
         </tbody>
     </table>
