@@ -17,9 +17,9 @@
             <select th:field="*{category.id}" id="category.id" class="form-select form-select-lg">
                 <option value="">-- Seleccionar --</option>
                 <option th:each="category: ${categories}" th:value="${category.id}" th:text="${category.name}"></option>
-                <div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"
-                     class="form-text text-danger"></div>
             </select>
+            <div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"
+                 class="form-text text-danger"></div>
         </div>
         <div class="mb-3">
             <label for="name" class="form-label">Nombre</label>

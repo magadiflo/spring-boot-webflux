@@ -1245,8 +1245,8 @@ Ahora en el formulario, creamos una etiqueta ``<select>`` y utilizamos la variab
 <select th:field="*{category.id}" id="category.id">
     <option value="">-- Seleccionar --</option>
     <option th:each="category: ${categories}" th:value="${category.id}" th:text="${category.name}"></option>
-    <div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"></div>
 </select>
+<div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"></div>
 ````
 
 **NOTA**
@@ -1261,5 +1261,76 @@ Ahora en el formulario, creamos una etiqueta ``<select>`` y utilizamos la variab
 > se agregará automáticamente, pero lo agregué para que el IDE no marque warning al momento de estar codeando, ya que
 > tenemos un ``<label>`` que está esperando un id del select para hacer referencia.
 
+## Persistiendo y asignando la categoría en el handler del controlador
 
+Antes de hacer la persistencia, vamos a agregar las anotaciones de validación para cuando se intente guardar el
+formulario sin haber seleccionado una categoría nos muestre el mensaje de error:
 
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* omitted code */
+    @Valid
+    private Category category;
+    /* omitted code */
+}
+````
+
+Como nos interesa que se seleccione una categoría, eso significa que la categoría seleccionada debe tener un id distinto
+de vacío, por lo tanto, debemos validar el id de la categoría, pero en este caso, estamos dentro de la clase producto y
+el formulario html de registro gira en torno al producto, en consecuencia, debemos anotar con ``@Valid`` la propiedad
+**Category** para que se apliquen las validaciones que tiene internamente la clase **Category**.
+
+````java
+
+@Document(collection = "categories")
+public class Category {
+    @Id
+    @NotBlank // Esta será la validación que se aplique
+    private String id;
+    /* omitted code */
+}
+````
+
+**NOTA**
+> Recordar que la anotación **@Valid** es la misma que utilizamos en el parámetro del método **save()** para validar
+> precisamente los atributos del objeto Product.
+>
+> La anotación **@Valid** marca una propiedad, un parámetro de método o un tipo de retorno de método para la validación
+> en cascada.
+>
+> Las restricciones definidas en el objeto y sus propiedades se validan cuando se valida la propiedad, el parámetro del
+> método o el tipo de devolución del método. Este comportamiento se aplica recursivamente.
+
+Ahora sí, toca persistir el producto junto a su categoría:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code*/
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+        if (result.hasErrors()) {
+            model.addAttribute("title", "Errores en el formulario de producto");
+            model.addAttribute("btnText", "Guardar");
+            return Mono.just("form");
+        }
+        sessionStatus.setComplete();
+
+        return this.productService.findCategory(product.getCategory().getId())
+                .flatMap(categoryDB -> {
+                    if (product.getCreateAt() == null) {
+                        product.setCreateAt(LocalDate.now());
+                    }
+                    product.setCategory(categoryDB);
+                    return this.productService.saveProduct(product);
+                }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* omitted code*/
+}
+````

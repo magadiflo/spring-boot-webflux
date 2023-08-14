@@ -1,5 +1,6 @@
 package com.magadiflo.webflux.app.models.documents;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.data.annotation.Id;
@@ -19,6 +20,7 @@ public class Product {
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate createAt;
 
+    @Valid //Le decimos que este objeto se tiene que validar
     private Category category;
 
     public Product() {

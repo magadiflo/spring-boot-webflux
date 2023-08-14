@@ -1,11 +1,13 @@
 package com.magadiflo.webflux.app.models.documents;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "categories")
 public class Category {
     @Id
+    @NotBlank //Aquí estamos validando
     private String id;
     private String name;
 

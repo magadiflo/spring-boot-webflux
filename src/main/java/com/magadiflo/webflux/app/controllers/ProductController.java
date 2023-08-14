@@ -86,18 +86,20 @@ public class ProductController {
     @PostMapping(path = "/form")
     public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
         if (result.hasErrors()) {
-            //de forma automática el objeto product pasado por parámetro se irá a la vista del form
-            //También podríamos usar la anotación @ModelAttribute() para definir un nombre con el cual pasar automáticamente el Product a la vista
             model.addAttribute("title", "Errores en el formulario de producto");
             model.addAttribute("btnText", "Guardar");
             return Mono.just("form");
         }
         sessionStatus.setComplete();
-        if (product.getCreateAt() == null) {
-            product.setCreateAt(LocalDate.now());
-        }
-        return this.productService.saveProduct(product)
-                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
+
+        return this.productService.findCategory(product.getCategory().getId())
+                .flatMap(categoryDB -> {
+                    if (product.getCreateAt() == null) {
+                        product.setCreateAt(LocalDate.now());
+                    }
+                    product.setCategory(categoryDB);
+                    return this.productService.saveProduct(product);
+                }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
                 .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
     }
 
