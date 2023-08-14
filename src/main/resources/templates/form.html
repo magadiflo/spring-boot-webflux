@@ -13,6 +13,15 @@
     <form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
         <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
         <div class="mb-3">
+            <label for="category.id" class="form-label">Categoría</label>
+            <select th:field="*{category.id}" id="category.id" class="form-select form-select-lg">
+                <option value="">-- Seleccionar --</option>
+                <option th:each="category: ${categories}" th:value="${category.id}" th:text="${category.name}"></option>
+                <div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"
+                     class="form-text text-danger"></div>
+            </select>
+        </div>
+        <div class="mb-3">
             <label for="name" class="form-label">Nombre</label>
             <input type="text" class="form-control" id="name" th:field="*{name}">
             <div th:if="${#fields.hasErrors('name')}" th:errors="*{name}" class="form-text text-danger"></div>

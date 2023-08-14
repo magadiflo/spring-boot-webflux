@@ -21,6 +21,7 @@
             <th>Nombre</th>
             <th>Precio</th>
             <th>Creación</th>
+            <th>Categoría</th>
             <th>Editar</th>
         </tr>
         </thead>
@@ -30,6 +31,7 @@
             <td th:text="${product.name}"></td>
             <td th:text="${product.price}"></td>
             <td th:text="${product.createAt}"></td>
+            <td th:text="${product.category.name}"></td>
             <td><a th:href="@{/form/} + ${product.id}">editar</a></td>
             <td><a th:href="@{/form-v2/} + ${product.id}">editar v2</a></td>
             <td><a th:href="@{/delete/} + ${product.id}" onclick="return confirm('¿Seguro que desea eliminar?')"

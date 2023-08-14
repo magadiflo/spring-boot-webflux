@@ -1208,3 +1208,58 @@ public class SpringBootWebfluxApplication {
 > Usamos **thenMany() con un Flux**<br>
 > Usamos **un then() con un Mono**
 
+Finalmente, así se estarían guardando los registros en la base de datos de MongoDB:
+
+![productos y categorías](./assets/productos-y-categorias.png)
+
+## Añadiendo campo select categoría en el formulario
+
+Para poder mostrar la lista de categorías dentro de un select en el formulario primero debemos crear un método en el
+controlador **ProductController** que nos retorne la lista de categorías.
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @ModelAttribute(name = "categories")
+    public Flux<Category> categories() {
+        return this.productService.findAllCategories();
+    }
+    /* omitted code */
+}
+````
+
+Como observamos en el código anterior se creó un método que retorna un Flux<Category>, pero además observemos la
+anotación ``@ModelAttribute()``, cuando usamos esta anotación sobre un método, el objeto que retorna el método pasará a
+la vista de forma global en el atributo que le definamos en su interior, es decir, todas las vistas tendrán
+automáticamente el objeto retornado por el método **categories()** y podrán acceder a él a través del atributo
+**categories**
+
+Ahora en el formulario, creamos una etiqueta ``<select>`` y utilizamos la variable **categories**:
+
+````html
+<label for="category.id" class="form-label">Categoría</label>
+<select th:field="*{category.id}" id="category.id">
+    <option value="">-- Seleccionar --</option>
+    <option th:each="category: ${categories}" th:value="${category.id}" th:text="${category.name}"></option>
+    <div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"></div>
+</select>
+````
+
+**NOTA**
+
+> El ``th:field="*{propiedad}"``, coloca automáticamente los atributos **id y name** en el elemento html donde se esté
+> usando. El valor será la misma propiedad definida dentro del field
+>
+> En nuestro caso, estamos utilizando ``th:field="*{category.id}"`` dentro del elemento ``<select>``, por lo tanto,
+> en automático se crea el id="category.id" y el name="category.id". Lo mismo ocurre para los otros elementos.
+>
+> Ahora, en mi caso agregué explícitamente en el elemento select el valor ``id=category.id``, aunque como dijimos, eso
+> se agregará automáticamente, pero lo agregué para que el IDE no marque warning al momento de estar codeando, ya que
+> tenemos un ``<label>`` que está esperando un id del select para hacer referencia.
+
+
+

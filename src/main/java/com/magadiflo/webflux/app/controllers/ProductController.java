@@ -1,5 +1,6 @@
 package com.magadiflo.webflux.app.controllers;
 
+import com.magadiflo.webflux.app.models.documents.Category;
 import com.magadiflo.webflux.app.models.documents.Product;
 import com.magadiflo.webflux.app.models.services.IProductService;
 import jakarta.validation.Valid;
@@ -26,6 +27,11 @@ public class ProductController {
 
     public ProductController(IProductService productService) {
         this.productService = productService;
+    }
+
+    @ModelAttribute(name = "categories")
+    public Flux<Category> categories() {
+        return this.productService.findAllCategories();
     }
 
     @GetMapping(path = {"/", "/list"})
