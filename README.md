@@ -1058,3 +1058,89 @@ Finalmente, desde el listado html agregamos un botón para poder llamar a este e
        class="btn btn-sm btn-danger">eliminar</a>
 </td>
 ````
+
+## Añadiendo relaciones de colecciones y nuevo documento categoría
+
+Crearemos el documento Categoría para que cada Producto pertenezca una categoría:
+
+````java
+
+@Document(collection = "categories")
+public class Category {
+    @Id
+    private String id;
+    private String name;
+
+    /* constructors, getters, setters, toString method */
+}
+````
+
+Ahora, en nuestro documento Product agregamos la nueva columna que tendrá:
+
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* other attributes */
+
+    private Category category;
+
+    /* other constructors */
+
+    public Product(String name, Double price, Category category) {
+        this(name, price);
+        this.category = category;
+    }
+
+    /*getters and setters of category */
+}
+````
+
+Crearemos el repositorio correspondiente al documento Category:
+
+````java
+public interface ICategoryRepository extends ReactiveMongoRepository<Category, String> {
+}
+````
+
+Agregamos métodos adicionales a la interfaz IProductService:
+
+````java
+public interface IProductService {
+    /* other methods */
+
+    Flux<Category> findAllCategories();
+
+    Mono<Category> findCategory(String id);
+
+    Mono<Category> saveCategory(Category category);
+}
+````
+
+Finalmente implementamos los métodos agregados:
+
+````java
+
+@Service
+public class ProductServiceImpl implements IProductService {
+    /* other code */
+    private final ICategoryRepository categoryRepository;
+    /* other code */
+
+    @Override
+    public Flux<Category> findAllCategories() {
+        return this.categoryRepository.findAll();
+    }
+
+    @Override
+    public Mono<Category> findCategory(String id) {
+        return this.categoryRepository.findById(id);
+    }
+
+    @Override
+    public Mono<Category> saveCategory(Category category) {
+        return this.categoryRepository.save(category);
+    }
+}
+````
+
