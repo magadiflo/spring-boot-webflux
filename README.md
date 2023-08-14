@@ -1144,3 +1144,67 @@ public class ProductServiceImpl implements IProductService {
 }
 ````
 
+## Añadiendo categorías de ejemplo y el operador thenMany
+
+Al igual que hicimos con los productos, cada vez que iniciemos la aplicación agregaremos categorías a la base de datos e
+inmediatamente agregaremos los productos con sus categorías.
+
+````java
+
+@SpringBootApplication
+public class SpringBootWebfluxApplication {
+    /* other code */
+    private final IProductService productService;
+    private final ReactiveMongoTemplate reactiveMongoTemplate;
+
+    /* other code */
+
+    @Bean
+    public CommandLineRunner run() {
+        return args -> {
+            this.reactiveMongoTemplate.dropCollection("products").subscribe();
+            this.reactiveMongoTemplate.dropCollection("categories").subscribe();        // (1)
+
+            Category electronico = new Category("Electrónico");
+            Category deporte = new Category("Deporte");
+            Category muebles = new Category("Muebles");
+            Category decoracion = new Category("Decoración");
+
+            Flux.just(electronico, deporte, muebles, decoracion)
+                    .flatMap(this.productService::saveCategory)                         // (2)
+                    .doOnNext(category -> LOG.info("Categoría creada: {}", category))
+                    .thenMany(                                                          // (3)
+                            Flux.just(
+                                            new Product("Tv LG 70'", 3609.40, electronico),
+                                            new Product("Sony Cámara HD", 680.60, electronico),
+                                            new Product("Bicicleta Monteñera", 1800.60, deporte),
+                                            new Product("Monitor 27' LG", 750.00, electronico),
+                                            new Product("Teclado Micronics", 17.00, electronico),
+                                            new Product("Celular Huawey", 900.00, electronico),
+                                            new Product("Interruptor simple", 6.00, decoracion)
+                                            /* other products */
+                                    )
+                                    .flatMap(product -> {
+                                        product.setCreateAt(LocalDate.now());
+                                        return this.productService.saveProduct(product);
+                                    })
+
+                    )
+                    .subscribe(
+                            product -> LOG.info("Insertado: {}, {}, {}, {}", product.getId(), product.getName(), product.getCreateAt(), product.getCategory()),
+                            error -> LOG.error("Error al insertar: {}", error.getMessage()),
+                            () -> LOG.info("¡Inserción completada!")
+                    );
+        };
+    }
+}
+````
+
+- **(1)** eliminamos toda la colección de categorías al iniciar la aplicación, al igual que hicimos con productos.
+- **(2)** por cada categoría agregada al flux, lo vamos a guardar en la base de datos utilizando el **productService**.
+- **(3)** el **thenMany()** espera que el flux anterior, el de categorías se complete para que se empiece a ejecutar el
+  publisher definido en su interior, un publisher del tipo Flux.
+
+> Usamos **thenMany() con un Flux**<br>
+> Usamos **un then() con un Mono**
+
