@@ -865,3 +865,32 @@ editar.
     <!-- other tags -->
 </form>
 ````
+
+## Actualización dependencia de Spring Boot Starter Validation
+
+A partir de la versión de Spring Boot +2.3.0 debemos agregar la dependencia de **spring-boot-starter-validation** para
+integrar y aprovechar las capacidades de validación de datos proporcionadas por la especificación de Bean Validation,
+que es parte de Java EE (ahora Jakarta EE). **Esta dependencia facilita la validación de datos de entrada en tu
+aplicación Spring Boot de manera declarativa y estandarizada.**
+
+La validación de datos es esencial para garantizar que los datos ingresados por los usuarios o provenientes de fuentes
+externas cumplan con ciertos requisitos antes de ser procesados o almacenados en la base de datos. Esto ayuda a prevenir
+errores y asegura la integridad de los datos en tu aplicación.
+
+Agrega las siguientes características al proyecto de Spring Boot:
+
+1. Integración con la especificación de Bean Validation: @NotNull, @Size, @Min, @Max, etc.
+2. Validación en el proceso de binding.
+3. Manejo de errores de validación.
+4. Configuración simplificada.
+
+En nuestro caso, como estamos usando un proyecto de Spring Boot 3, es necesario agregar esta dependencia para hacer las
+validaciones correspondientes:
+
+````xml
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+````
