@@ -2,10 +2,12 @@ package com.magadiflo.webflux.app.controllers;
 
 import com.magadiflo.webflux.app.models.documents.Product;
 import com.magadiflo.webflux.app.models.services.IProductService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.support.SessionStatus;
 import org.thymeleaf.spring6.context.webflux.ReactiveDataDriverContextVariable;
@@ -13,6 +15,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.LocalDate;
 
 @SessionAttributes(value = "product")
 @Controller
@@ -75,11 +78,21 @@ public class ProductController {
     }
 
     @PostMapping(path = "/form")
-    public Mono<String> save(Product product, SessionStatus sessionStatus) {
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+        if (result.hasErrors()) {
+            //de forma automática el objeto product pasado por parámetro se irá a la vista del form
+            //También podríamos usar la anotación @ModelAttribute() para definir un nombre con el cual pasar automáticamente el Product a la vista
+            model.addAttribute("title", "Errores en el formulario de producto");
+            model.addAttribute("btnText", "Guardar");
+            return Mono.just("form");
+        }
         sessionStatus.setComplete();
+        if (product.getCreateAt() == null) {
+            product.setCreateAt(LocalDate.now());
+        }
         return this.productService.saveProduct(product)
                 .doOnNext(p -> LOG.info("Producto guardado: {}", p))
-                .thenReturn("redirect:/list");
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
     }
 
     @GetMapping(path = "/form/{id}")

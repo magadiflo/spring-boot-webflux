@@ -894,3 +894,125 @@ validaciones correspondientes:
     <artifactId>spring-boot-starter-validation</artifactId>
 </dependency>
 ````
+
+## Añadiendo validación en el formulario
+
+Primero debemos anotar los campos que serán validados. En nuestro caso validaremos el campo name y price de la clase
+de documento Product.
+
+````java
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+@Document(collection = "products")
+public class Product {
+    /* other code */
+    @NotBlank
+    private String name;
+    @NotNull
+    private Double price;
+    /* other code*/
+}
+````
+
+- **@NotBlank**, el elemento anotado no debe ser nulo y debe contener al menos un carácter que no sea un espacio en
+  blanco. Acepta CharSequence.
+- **@NotNull**, el elemento anotado no debe ser nulo. Acepta cualquier tipo.
+
+La validación lo haremos al momento de que se llame al endpoint ``[POST] /form`` método **save()** usado para guardar el
+formulario en la base de datos.
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+        if (result.hasErrors()) {
+            model.addAttribute("title", "Errores en el formulario de producto");
+            model.addAttribute("btnText", "Guardar");
+            return Mono.just("form");
+        }
+        sessionStatus.setComplete();
+        if (product.getCreateAt() == null) {
+            product.setCreateAt(LocalDate.now());
+        }
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* other code */
+}
+````
+
+En el código anterior vemos que se ha agregado la anotación ``@Valid`` antes de la clase de documento Product
+(quien contiene las anotaciones de validación), además, para obtener los errores de la clase Product es que se ha
+agregado como parámetro siguiente la clase **BindingResult** *(¡Importante! Tiene que ir siempre a continuación de la
+clase que tenga la anotación @Valid)*, luego también se ha agregado la clase Model como parámetro para poder agregar
+atributos a la vista.
+
+````
+@PostMapping(path = "/form")
+public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {...}
+````
+
+Dentro del método save(), se está haciendo una validación para poder ver si los elementos anotados de la clase Product
+vienen con errores:
+
+````
+if (result.hasErrors()) {
+    model.addAttribute("title", "Errores en el formulario de producto");
+    model.addAttribute("btnText", "Guardar");
+    return Mono.just("form");
+}
+````
+
+Es importante resaltar aquí que **de forma automática** el objeto product pasado por parámetro``@Valid Product product``
+se irá a la vista del form ``return Mono.just("form")`` cuando se haya detectado errores, e **incluso esos mismos
+errores se irán a la vista para poder mostrarlos en el formulario.
+
+También podríamos ser explícitos y usar la anotación **@ModelAttribute()** para definir un nombre con el cual pasar
+automáticamente el Product a la vista:
+
+````
+@PostMapping(path = "/form")
+public Mono<String> save(@Valid @ModelAttribute("product") Product product, BindingResult result, SessionStatus sessionStatus, Model model) {...}
+````
+
+Pero en nuestro caso no es necesario, ya que **de manera automática se está pasando el objeto Product a la vista**, esto
+ocurre así, porque al momento de abrir el formulario, es decir cuando vamos al endpoint ``[GET] /form`` método
+**create(Model model)** allí estamos definiendo el atributo **product** que se pasará a la vista.
+
+````
+@GetMapping(path = "/form")
+public Mono<String> create(Model model) {
+    model.addAttribute("product", new Product()); <--- Atributo product que se pasará a la vista
+    /* other code */
+    return Mono.just("form");
+}
+````
+
+Por lo tanto, cuando desde el formulario se le dé en el botón **submit**, ya existirá el atributo **product**, todo
+ese formulario se irá al endpoint ``[POST] /form`` método **save()** para registrar los datos en la base de datos, y
+es en este último método, donde ya viene el objeto product, con sus validaciones y si hay errores se abre nuevamente
+el formulario conteniendo el objeto producto, pero esta vez con sus errores de validación.
+
+Finalmente, debemos modificar el formulario html para poder mostrar los errores:
+
+````html
+
+<div>
+    <label>Nombre</label>
+    <input type="text" th:field="*{name}">
+    <div th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
+</div>
+
+<div>
+    <label>Precio</label>
+    <input type="number" step="0.10" th:field="*{price}">
+    <div th:if="${#fields.hasErrors('price')}" th:errors="*{price}"></div>
+</div>
+````

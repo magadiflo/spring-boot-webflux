@@ -1,5 +1,7 @@
 package com.magadiflo.webflux.app.models.documents;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -10,7 +12,9 @@ import java.time.LocalDate;
 public class Product {
     @Id
     private String id;
+    @NotBlank
     private String name;
+    @NotNull
     private Double price;
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate createAt;
