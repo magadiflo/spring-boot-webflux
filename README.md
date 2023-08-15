@@ -38,7 +38,9 @@ public class Product {
     private String id;
     private String name;
     private Double price;
-    private LocalDateTime createAt;
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    //<-- Para que la fecha se muestre correctamente en el input date o se obtenga de él en ese formado yyyy-MM-dd
+    private LocalDate createAt;
 
     public Product() {
     }
@@ -207,7 +209,7 @@ public class SpringBootWebfluxApplication {
             this.reactiveMongoTemplate.dropCollection("products").subscribe();
             Flux.just(/* data */)
                     .flatMap(product -> {
-                        product.setCreateAt(LocalDateTime.now()); //<-- asignando fecha actual a cada producto
+                        product.setCreateAt(LocalDate.now()); //<-- asignando fecha actual a cada producto
                         return this.productRepository.save(product);
                     });
             /* other code */
@@ -570,3 +572,980 @@ resultados en pantalla y ver los elementos que se van emitiendo por el flujo.
 
 Listo, como observamos, tenemos dos endpoints, el primero **(1)** retorna un Flux de productos, mientras que el tercero
 **(3)** retorna un Mono de un solo producto.
+
+---
+
+# CRUD con Thymeleaf Reactivo
+
+---
+
+## Creando el componente service para los productos
+
+Crearemos el servicio que posteriormente será inyectado en el controlador:
+
+````java
+public interface IProductService {
+    Flux<Product> findAll();
+
+    Flux<Product> findAllWithNameUpperCase();
+
+    Flux<Product> findAllWithNameUpperCaseAndRepeat();
+
+    Mono<Product> findById(String id);
+
+    Mono<Product> saveProduct(Product product);
+
+    Mono<Void> delete(Product product);
+} 
+````
+
+````java
+
+@Service
+public class ProductServiceImpl implements IProductService {
+    private final IProductRepository productRepository;
+
+    public ProductServiceImpl(IProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @Override
+    public Flux<Product> findAll() {
+        return this.productRepository.findAll();
+    }
+
+    @Override
+    public Flux<Product> findAllWithNameUpperCase() {
+        return this.productRepository.findAll()
+                .map(product -> {
+                    product.setName(product.getName().toUpperCase());
+                    return product;
+                });
+    }
+
+    @Override
+    public Flux<Product> findAllWithNameUpperCaseAndRepeat() {
+        return this.findAllWithNameUpperCase().repeat(5000);
+    }
+
+    @Override
+    public Mono<Product> findById(String id) {
+        return this.productRepository.findById(id);
+    }
+
+    @Override
+    public Mono<Product> saveProduct(Product product) {
+        return this.productRepository.save(product);
+    }
+
+    @Override
+    public Mono<Void> delete(Product product) {
+        return this.productRepository.delete(product);
+    }
+}
+````
+
+En el controlador reemplazamos el **IProductRepository** por nuestro **IProductService**.
+
+## Agregando métodos handler en el controlador: crear y guardar
+
+Crearemos el método handler para mostrar el formulario. **Hasta este momento nuestros métodos handler solo han retornado
+un String correspondiente al nombre del template a renderizar**, pero ahora, **haremos que se retorne la vista de forma
+reactiva**, es decir retornando un ``Mono<String>``:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form")
+    public Mono<String> create(Model model) {
+        model.addAttribute("product", new Product());
+        model.addAttribute("title", "Formulario de producto");
+        return Mono.just("form");
+    }
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(Product product) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado [id: {}, nombre: {}]", product.getId(), p.getName()))
+                .thenReturn("redirect:/list");
+    }
+}
+````
+
+## Añadiendo la vista form
+
+Crearemos dentro del directorio **/resources/templates/** el archivo html que contendrá nuestro formulario para agregar
+productos. Nuestro formulario tendrá la siguiente configuración:
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <div class="mb-3">
+        <label for="name" class="form-label">Nombre</label>
+        <input type="text" class="form-control" id="name" th:field="*{name}">
+    </div>
+    <div class="mb-3">
+        <label for="price" class="form-label">Precio</label>
+        <input type="number" step="0.10" class="form-control" id="price" th:field="*{price}">
+    </div>
+    <div class="mb-3">
+        <label for="createAt" class="form-label">Fecha</label>
+        <input type="date" class="form-control" id="createAt" th:field="*{createAt}">
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+</form>
+````
+
+Como observamos, el ``th:action="@{/products/form}"`` nos permite redirigir el formulario cuando se haga submit a la uri
+``/products/form``. Notar que todo enlace en thymeleaf debe iniciar con un ``@``.
+
+Otro punto importante a observar es ``th:object="${product}"``, de esta manera estamos enlazando el objeto **product**
+que se envía desde la ruta ``GET /form`` con nuestro formulario. Ahora, para mapear cada atributo a su input
+correspondiente, es que utilizamos ``th:field="*{name}"``, dentro de las llaves va el nombre de la propiedad al cual
+enlazaremos el input, en este ejemplo estamos enlazando la propiedad **name**.
+
+Cuando ejecutemos la aplicación, llenemos los datos en el formulario y le demos en **Guardar**, seremos redireccionados
+a ``th:action="@{/products/form}"``, cuyos datos serán recibidos por el controlador **ProductController** y su método
+handler ``POST /form``, quien realizará el guardado del producto en la BD.
+
+**IMPORTANTE**
+
+> Andrés Guzmán definió el atributo createAt del Producto como un Date de java.util. Por lo que, al vincular el atributo
+> **th:field="*{createAt}"** con el input del tipo **date** ocurría un error en el formato de la fecha. Para
+> solucionarlo se optó por agregar la anotación **@DateTimeFormat(pattern = "yyyy-MM-dd")** sobre el campo **Date** del
+> modelo Producto.
+>
+> En mi caso, aprovechando las nuevas características de java, utilizo en el atributo createAt el tipo de dato
+> **LocalDate**, de esta manera no tengo ningún problema al vincularlo al input html, ni hay la necesidad de agregar
+> ninguna anotación, es decir, automáticamente la fecha seleccionada con el input date del html se mapea al atributo
+> **createAt del tipo LocalDate.**
+
+## Agregando método handler editar en el Controlador
+
+Utilizaremos el mismo formulario de agregar productos para poder editarlos, pero es necesario que tengamos el
+identificador del producto que vamos a editar, caso contrario, JPA al no detectar el id, o al ser el id null, en vez de
+editar el producto lo terminará agregando. Por lo tanto, cuando mandemos el formulario para editar, debemos asegurarnos
+de que también enviemos el id del producto. Podemos implementar 1 de 2 soluciones.
+
+Antes de implementar las soluciones, observemos el método handler que creamos para poder abrir el formulario html
+con el producto que será editado:
+
+````java
+
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form/{id}")
+    public Mono<String> edit(@PathVariable String id, Model model) {
+        Mono<Product> productMono = this.productService.findById(id)
+                .doOnNext(product -> LOG.info(product.toString()))
+                .defaultIfEmpty(new Product());
+        model.addAttribute("product", productMono);
+        model.addAttribute("title", "Editar producto");
+        return Mono.just("form");
+    }
+}
+````
+
+La **primera es definiendo un input del tipo hidden** que contendrá el identificador del producto que se está editando:
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
+</form>
+````
+
+La **segunda forma es usar sesiones de Spring**, pero es una sesión especial, es **solo para manejar en el formulario.**
+
+Si observamos en el código siguiente, veremos la anotación **@SessionAttributes(value = "product")**, esta anotación
+indica los atributos de sesión que utiliza el controlador **ProductController**, en este caso el único atributo de
+sesión del controlador que definimos es **product**. Este nombre **product** corresponde con el objeto que se pasa al
+formulario.
+
+Cada vez que se llama a los métodos handler **create() o edit()**, estos métodos nos mostrarán el formulario html para
+poder crear o editar, respectivamente. Además, desde esos métodos, se pasa al formulario el objeto 'product' y cada
+vez que eso ocurra, como tenemos anotado el controlador con **@SessionAttributes(value = "product")**, el objeto
+'product' se guardará en la sesión http de forma momentánea estando disponible en el formulario. Además, solo se
+actualizarán los campos que editemos en el formulario. El id estará presente, pero a nivel de sesión, ya que como no
+tenemos un input que guarde el id, no lo podremos ver en la web, pero sí estará presente en la sesión.
+
+Luego de enviar el formulario al método **save()**, ya sea para actualizar o guardar un producto, debemos eliminar la
+sesión con **.setComplete()**.
+
+````java
+
+@SessionAttributes(value = "product") //<-- Atributo de sesión 'product' del formulario 
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form")
+    public Mono<String> create(Model model) {
+        model.addAttribute("product", new Product()); //<-- No solo se pasa al formulario sino que se guarda en la sessión http por la anotación @SessionAttributes(value = "product")
+        model.addAttribute("title", "Formulario de producto");
+        return Mono.just("form");
+    }
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(Product product, SessionStatus sessionStatus) {//de forma automática cuando se envía el formulario se envían los datos que están poblados en el objeto producto
+        sessionStatus.setComplete(); //<-- Marque el procesamiento de la sesión del controlador actual como completo, lo que permite la limpieza de los atributos de la sesión.
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list");
+    }
+
+    @GetMapping(path = "/form/{id}")
+    public Mono<String> edit(@PathVariable String id, Model model) {
+        Mono<Product> productMono = this.productService.findById(id)
+                .doOnNext(product -> LOG.info(product.toString()))
+                .defaultIfEmpty(new Product());
+        model.addAttribute("product", productMono); //<-- No solo se pasa al formulario sino que se guarda en la sessión http por la anotación @SessionAttributes(value = "product")
+        model.addAttribute("title", "Editar producto");
+        return Mono.just("form");
+    }
+}
+````
+
+## Añadiendo otra forma del editar
+
+Crearemos otro método editar, pero esta vez implementaremos el método en un solo flujo, pero eso nos provocaría cierto
+error, pero ya lo veremos luego, por ahora veamos la implementación del nuevo método editar:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/form-v2/{id}")
+    public Mono<String> editV2(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(product -> {
+                    LOG.info(product.toString());
+                    model.addAttribute("product", product);
+                    model.addAttribute("title", "Editar producto");
+                    model.addAttribute("btnText", "Editar v2");
+                })
+                .defaultIfEmpty(new Product()) //<-- Si el findById no encuentra el producto entra en este método donde retornamos un nuevo producto
+                .flatMap(product -> {
+                    if (product.getId() == null) { //<-- Si hemos retornado un nuevo producto su id es null, por lo tanto, el producto no ha sido encontrado, entramos al if y lanzamos la excepción
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.just(product); // Si el producto viene con su id, significa que el findById sí lo encontró
+                })
+                .thenReturn("form") // Finalmente retornamos un Mono<String>, es decir nuestro formulario html
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto")); //<-- Si entró al if anterior y lanzamos el Mono.error(), este método lo captura. Hacemos un redirecto mandando un mensaje de error.
+    }
+}
+````
+
+A diferencia de nuestro primer método **edit()**, este segundo método **editV2()** realiza todo el proceso en un solo
+flujo. **La desventaja** es que ahora ya no podremos usar el **@SessionAttributes(value = "product")**, es decir, la
+session no se aplicará dentro del flujo, por consiguiente el atributo **product** no se guardará en la sesión, aunque
+sí se enviará al formulario para editar gracias al **model.addAttribute("product", product)**, pero no estará disponible
+en la sesión.
+
+Recordemos que usábamos en el método **edit()** el **@SessionAttributes()** para guardar el producto y usar su id para
+poder editar el producto en la base de datos. Entonces, como ahora en el método **editV2()** no se está guardando el
+producto en la sesión, cuando demos en guardar, se registrará un nuevo producto más no lo editará.
+
+Para solucionar ese problema, debemos agregar un ``<input type="hidden">`` que contendrá el valor del id para poder
+editar.
+
+````html
+
+<form action="#" th:action="@{/products/form}" th:object="${product}" method="post">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}">
+    <!-- other tags -->
+</form>
+````
+
+## Actualización dependencia de Spring Boot Starter Validation
+
+A partir de la versión de Spring Boot +2.3.0 debemos agregar la dependencia de **spring-boot-starter-validation** para
+integrar y aprovechar las capacidades de validación de datos proporcionadas por la especificación de Bean Validation,
+que es parte de Java EE (ahora Jakarta EE). **Esta dependencia facilita la validación de datos de entrada en tu
+aplicación Spring Boot de manera declarativa y estandarizada.**
+
+La validación de datos es esencial para garantizar que los datos ingresados por los usuarios o provenientes de fuentes
+externas cumplan con ciertos requisitos antes de ser procesados o almacenados en la base de datos. Esto ayuda a prevenir
+errores y asegura la integridad de los datos en tu aplicación.
+
+Agrega las siguientes características al proyecto de Spring Boot:
+
+1. Integración con la especificación de Bean Validation: @NotNull, @Size, @Min, @Max, etc.
+2. Validación en el proceso de binding.
+3. Manejo de errores de validación.
+4. Configuración simplificada.
+
+En nuestro caso, como estamos usando un proyecto de Spring Boot 3, es necesario agregar esta dependencia para hacer las
+validaciones correspondientes:
+
+````xml
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+````
+
+## Añadiendo validación en el formulario
+
+Primero debemos anotar los campos que serán validados. En nuestro caso validaremos el campo name y price de la clase
+de documento Product.
+
+````java
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+@Document(collection = "products")
+public class Product {
+    /* other code */
+    @NotBlank
+    private String name;
+    @NotNull
+    private Double price;
+    /* other code*/
+}
+````
+
+- **@NotBlank**, el elemento anotado no debe ser nulo y debe contener al menos un carácter que no sea un espacio en
+  blanco. Acepta CharSequence.
+- **@NotNull**, el elemento anotado no debe ser nulo. Acepta cualquier tipo.
+
+La validación lo haremos al momento de que se llame al endpoint ``[POST] /form`` método **save()** usado para guardar el
+formulario en la base de datos.
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+        if (result.hasErrors()) {
+            model.addAttribute("title", "Errores en el formulario de producto");
+            model.addAttribute("btnText", "Guardar");
+            return Mono.just("form");
+        }
+        sessionStatus.setComplete();
+        if (product.getCreateAt() == null) {
+            product.setCreateAt(LocalDate.now());
+        }
+        return this.productService.saveProduct(product)
+                .doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* other code */
+}
+````
+
+En el código anterior vemos que se ha agregado la anotación ``@Valid`` antes de la clase de documento Product
+(quien contiene las anotaciones de validación), además, para obtener los errores de la clase Product es que se ha
+agregado como parámetro siguiente la clase **BindingResult** *(¡Importante! Tiene que ir siempre a continuación de la
+clase que tenga la anotación @Valid)*, luego también se ha agregado la clase Model como parámetro para poder agregar
+atributos a la vista.
+
+````
+@PostMapping(path = "/form")
+public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {...}
+````
+
+Dentro del método save(), se está haciendo una validación para poder ver si los elementos anotados de la clase Product
+vienen con errores:
+
+````
+if (result.hasErrors()) {
+    model.addAttribute("title", "Errores en el formulario de producto");
+    model.addAttribute("btnText", "Guardar");
+    return Mono.just("form");
+}
+````
+
+Es importante resaltar aquí que **de forma automática** el objeto product pasado por parámetro``@Valid Product product``
+se irá a la vista del form ``return Mono.just("form")`` cuando se haya detectado errores, e **incluso esos mismos
+errores se irán a la vista para poder mostrarlos en el formulario.
+
+También podríamos ser explícitos y usar la anotación **@ModelAttribute()** para definir un nombre con el cual pasar
+automáticamente el Product a la vista:
+
+````
+@PostMapping(path = "/form")
+public Mono<String> save(@Valid @ModelAttribute("product") Product product, BindingResult result, SessionStatus sessionStatus, Model model) {...}
+````
+
+Pero en nuestro caso no es necesario, ya que **de manera automática se está pasando el objeto Product a la vista**, esto
+ocurre así, porque al momento de abrir el formulario, es decir cuando vamos al endpoint ``[GET] /form`` método
+**create(Model model)** allí estamos definiendo el atributo **product** que se pasará a la vista.
+
+````
+@GetMapping(path = "/form")
+public Mono<String> create(Model model) {
+    model.addAttribute("product", new Product()); <--- Atributo product que se pasará a la vista
+    /* other code */
+    return Mono.just("form");
+}
+````
+
+Por lo tanto, cuando desde el formulario se le dé en el botón **submit**, ya existirá el atributo **product**, todo
+ese formulario se irá al endpoint ``[POST] /form`` método **save()** para registrar los datos en la base de datos, y
+es en este último método, donde ya viene el objeto product, con sus validaciones y si hay errores se abre nuevamente
+el formulario conteniendo el objeto producto, pero esta vez con sus errores de validación.
+
+Finalmente, debemos modificar el formulario html para poder mostrar los errores:
+
+````html
+
+<div>
+    <label>Nombre</label>
+    <input type="text" th:field="*{name}">
+    <div th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
+</div>
+
+<div>
+    <label>Precio</label>
+    <input type="number" step="0.10" th:field="*{price}">
+    <div th:if="${#fields.hasErrors('price')}" th:errors="*{price}"></div>
+</div>
+````
+
+## Agregando método eliminar en el Controlador
+
+Creamos el método delete en el controlador:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* other code */
+    @GetMapping(path = "/delete/{id}")
+    public Mono<String> delete(@PathVariable String id) {
+        return this.productService.findById(id)
+                .defaultIfEmpty(new Product())
+                .flatMap(product -> {
+                    if (product.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto a eliminar")); // (1)
+                    }
+                    LOG.info("Producto a eliminar: {}", product);
+                    return Mono.just(product);
+                })
+                .flatMap(this.productService::delete)
+                .then(Mono.just("redirect:/list?success=Producto+eliminado+con+éxito"))
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto")); // (2)
+    }
+}
+````
+
+**(1)** si en ese punto se lanza la excepción con un **Mono.error()** en el punto **(2)** se captura ese error lanzado y
+se determina qué hacer, en nuestro caso si ocurre una excepción haremos un redireccionamiento.
+
+Finalmente, desde el listado html agregamos un botón para poder llamar a este endpoint:
+
+````html
+
+<td>
+    <a th:href="@{/delete/} + ${product.id}" onclick="return confirm('¿Seguro que desea eliminar?')"
+       class="btn btn-sm btn-danger">eliminar</a>
+</td>
+````
+
+## Añadiendo relaciones de colecciones y nuevo documento categoría
+
+Crearemos el documento Categoría para que cada Producto pertenezca una categoría:
+
+````java
+
+@Document(collection = "categories")
+public class Category {
+    @Id
+    private String id;
+    private String name;
+
+    /* constructors, getters, setters, toString method */
+}
+````
+
+Ahora, en nuestro documento Product agregamos la nueva columna que tendrá:
+
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* other attributes */
+
+    private Category category;
+
+    /* other constructors */
+
+    public Product(String name, Double price, Category category) {
+        this(name, price);
+        this.category = category;
+    }
+
+    /*getters and setters of category */
+}
+````
+
+Crearemos el repositorio correspondiente al documento Category:
+
+````java
+public interface ICategoryRepository extends ReactiveMongoRepository<Category, String> {
+}
+````
+
+Agregamos métodos adicionales a la interfaz IProductService:
+
+````java
+public interface IProductService {
+    /* other methods */
+
+    Flux<Category> findAllCategories();
+
+    Mono<Category> findCategory(String id);
+
+    Mono<Category> saveCategory(Category category);
+}
+````
+
+Finalmente implementamos los métodos agregados:
+
+````java
+
+@Service
+public class ProductServiceImpl implements IProductService {
+    /* other code */
+    private final ICategoryRepository categoryRepository;
+    /* other code */
+
+    @Override
+    public Flux<Category> findAllCategories() {
+        return this.categoryRepository.findAll();
+    }
+
+    @Override
+    public Mono<Category> findCategory(String id) {
+        return this.categoryRepository.findById(id);
+    }
+
+    @Override
+    public Mono<Category> saveCategory(Category category) {
+        return this.categoryRepository.save(category);
+    }
+}
+````
+
+## Añadiendo categorías de ejemplo y el operador thenMany
+
+Al igual que hicimos con los productos, cada vez que iniciemos la aplicación agregaremos categorías a la base de datos e
+inmediatamente agregaremos los productos con sus categorías.
+
+````java
+
+@SpringBootApplication
+public class SpringBootWebfluxApplication {
+    /* other code */
+    private final IProductService productService;
+    private final ReactiveMongoTemplate reactiveMongoTemplate;
+
+    /* other code */
+
+    @Bean
+    public CommandLineRunner run() {
+        return args -> {
+            this.reactiveMongoTemplate.dropCollection("products").subscribe();
+            this.reactiveMongoTemplate.dropCollection("categories").subscribe();        // (1)
+
+            Category electronico = new Category("Electrónico");
+            Category deporte = new Category("Deporte");
+            Category muebles = new Category("Muebles");
+            Category decoracion = new Category("Decoración");
+
+            Flux.just(electronico, deporte, muebles, decoracion)
+                    .flatMap(this.productService::saveCategory)                         // (2)
+                    .doOnNext(category -> LOG.info("Categoría creada: {}", category))
+                    .thenMany(                                                          // (3)
+                            Flux.just(
+                                            new Product("Tv LG 70'", 3609.40, electronico),
+                                            new Product("Sony Cámara HD", 680.60, electronico),
+                                            new Product("Bicicleta Monteñera", 1800.60, deporte),
+                                            new Product("Monitor 27' LG", 750.00, electronico),
+                                            new Product("Teclado Micronics", 17.00, electronico),
+                                            new Product("Celular Huawey", 900.00, electronico),
+                                            new Product("Interruptor simple", 6.00, decoracion)
+                                            /* other products */
+                                    )
+                                    .flatMap(product -> {
+                                        product.setCreateAt(LocalDate.now());
+                                        return this.productService.saveProduct(product);
+                                    })
+
+                    )
+                    .subscribe(
+                            product -> LOG.info("Insertado: {}, {}, {}, {}", product.getId(), product.getName(), product.getCreateAt(), product.getCategory()),
+                            error -> LOG.error("Error al insertar: {}", error.getMessage()),
+                            () -> LOG.info("¡Inserción completada!")
+                    );
+        };
+    }
+}
+````
+
+- **(1)** eliminamos toda la colección de categorías al iniciar la aplicación, al igual que hicimos con productos.
+- **(2)** por cada categoría agregada al flux, lo vamos a guardar en la base de datos utilizando el **productService**.
+- **(3)** el **thenMany()** espera que el flux anterior, el de categorías se complete para que se empiece a ejecutar el
+  publisher definido en su interior, un publisher del tipo Flux.
+
+> Usamos **thenMany() con un Flux**<br>
+> Usamos **un then() con un Mono**
+
+Finalmente, así se estarían guardando los registros en la base de datos de MongoDB:
+
+![productos y categorías](./assets/productos-y-categorias.png)
+
+## Añadiendo campo select categoría en el formulario
+
+Para poder mostrar la lista de categorías dentro de un select en el formulario primero debemos crear un método en el
+controlador **ProductController** que nos retorne la lista de categorías.
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @ModelAttribute(name = "categories")
+    public Flux<Category> categories() {
+        return this.productService.findAllCategories();
+    }
+    /* omitted code */
+}
+````
+
+Como observamos en el código anterior se creó un método que retorna un Flux<Category>, pero además observemos la
+anotación ``@ModelAttribute()``, cuando usamos esta anotación sobre un método, el objeto que retorna el método pasará a
+la vista de forma global en el atributo que le definamos en su interior, es decir, todas las vistas tendrán
+automáticamente el objeto retornado por el método **categories()** y podrán acceder a él a través del atributo
+**categories**
+
+Ahora en el formulario, creamos una etiqueta ``<select>`` y utilizamos la variable **categories**:
+
+````html
+<label for="category.id" class="form-label">Categoría</label>
+<select th:field="*{category.id}" id="category.id">
+    <option value="">-- Seleccionar --</option>
+    <option th:each="category: ${categories}" th:value="${category.id}" th:text="${category.name}"></option>
+</select>
+<div th:if="${#fields.hasErrors('category.id')}" th:errors="*{category.id}"></div>
+````
+
+**NOTA**
+
+> El ``th:field="*{propiedad}"``, coloca automáticamente los atributos **id y name** en el elemento html donde se esté
+> usando. El valor será la misma propiedad definida dentro del field
+>
+> En nuestro caso, estamos utilizando ``th:field="*{category.id}"`` dentro del elemento ``<select>``, por lo tanto,
+> en automático se crea el id="category.id" y el name="category.id". Lo mismo ocurre para los otros elementos.
+>
+> Ahora, en mi caso agregué explícitamente en el elemento select el valor ``id=category.id``, aunque como dijimos, eso
+> se agregará automáticamente, pero lo agregué para que el IDE no marque warning al momento de estar codeando, ya que
+> tenemos un ``<label>`` que está esperando un id del select para hacer referencia.
+
+## Persistiendo y asignando la categoría en el handler del controlador
+
+Antes de hacer la persistencia, vamos a agregar las anotaciones de validación para cuando se intente guardar el
+formulario sin haber seleccionado una categoría nos muestre el mensaje de error:
+
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* omitted code */
+    @Valid
+    private Category category;
+    /* omitted code */
+}
+````
+
+Como nos interesa que se seleccione una categoría, eso significa que la categoría seleccionada debe tener un id distinto
+de vacío, por lo tanto, debemos validar el id de la categoría, pero en este caso, estamos dentro de la clase producto y
+el formulario html de registro gira en torno al producto, en consecuencia, debemos anotar con ``@Valid`` la propiedad
+**Category** para que se apliquen las validaciones que tiene internamente la clase **Category**.
+
+````java
+
+@Document(collection = "categories")
+public class Category {
+    @Id
+    @NotBlank // Esta será la validación que se aplique
+    private String id;
+    /* omitted code */
+}
+````
+
+**NOTA**
+> Recordar que la anotación **@Valid** es la misma que utilizamos en el parámetro del método **save()** para validar
+> precisamente los atributos del objeto Product.
+>
+> La anotación **@Valid** marca una propiedad, un parámetro de método o un tipo de retorno de método para la validación
+> en cascada.
+>
+> Las restricciones definidas en el objeto y sus propiedades se validan cuando se valida la propiedad, el parámetro del
+> método o el tipo de devolución del método. Este comportamiento se aplica recursivamente.
+
+Ahora sí, toca persistir el producto junto a su categoría:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code*/
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+        if (result.hasErrors()) {
+            model.addAttribute("title", "Errores en el formulario de producto");
+            model.addAttribute("btnText", "Guardar");
+            return Mono.just("form");
+        }
+        sessionStatus.setComplete();
+
+        return this.productService.findCategory(product.getCategory().getId())
+                .flatMap(categoryDB -> {
+                    if (product.getCreateAt() == null) {
+                        product.setCreateAt(LocalDate.now());
+                    }
+                    product.setCategory(categoryDB);
+                    return this.productService.saveProduct(product);
+                }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* omitted code*/
+}
+````
+
+## Upload de imagen
+
+Agregamos el atributo image a la clase Producto, este atributo almacenará el nombre de la imagen que se seleccione para
+el producto.
+
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* omitted code */
+    private String image; // Atributo que no está mapeado en el formulario
+    /* setters and getters */
+}
+````
+
+En el **application.properties** colocaremos la ruta donde las imágenes serán subidas. Lo colocamos aquí para que la
+aplicación sea más flexible y la ruta no esté hardcodeada.
+
+````properties
+config.uploads.path=M://PROGRAMACION//DESARROLLO_JAVA_SPRING//INTELLIJ_IDEA//01.udemy//02.udemy_andres_guzman//05.repaso_programacion_reactiva//uploads//
+````
+
+Ahora modificaremos nuestro formulario html para agregarle el elemento ``<input type="file">`` para poder seleccionar la
+imagen del producto.
+
+**NOTA**
+> Si el formulario tiene lo siguiente **method="post"**, el **enctype** es el tipo MIME del envío del formulario.
+> Posibles valores:<br>
+>
+> **application/x-www-form-urlencoded:** El valor por defecto.<br>
+> **multipart/form-data:** Use este valor si el formulario contiene elementos ``<input>`` con ``type=file``.
+> **text/plain:** Útil para propósitos de depuración.
+
+````html
+
+<form th:action="@{/products/form}" th:object="${product}" method="post" enctype="multipart/form-data">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}"> <!-- para el edit-v2 -->
+    <input type="hidden" th:if="${product.image != null}" th:field="*{image}"><!-- para el edit-v2 -->
+    <!-- other inputs elements -->
+    <div class="mb-3">
+        <label for="imageFile" class="form-label">Seleccione una imagen</label>
+        <input type="file" id="imageFile" name="imageFile" class="form-control form-control-lg">
+    </div>
+    <button type="submit" class="btn btn-primary" th:text="${btnText}"></button>
+</form>
+````
+
+Como se observa en el formulario html se agregó el ``enctype="multipart/form-data"``, eso significa que el formulario
+tiene el elemento ``<input type="file">`` para subir archivos o como en nuestro caso, subir imágenes.
+
+El input que se agregó fue: ``<input type="file" id="imageFile" name="imageFile">`` lo que significa que el método
+handler del controlador espera recibir un elemento llamado **imageFile**. Este campo no está mapeado a la clase
+producto, recordemos que nuestra clase Producto tiene el atributo **image** y aquí estamos utilizando el atributo
+**imageFile**. Simplemente, usamos el **imageFile** para pasar la imagen al controlador y una vez tengamos la imagen
+en el controlador, lo subiremos al servidor donde será almacenado mientras que el nombre de la imagen lo pasaremos por
+el método set al producto.
+
+Otra cosa que podemos observar es que se agregó el
+``<input type="hidden" th:if="${product.image != null}" th:field="*{image}">``, esto es por si utilizamos el método
+del controlador **editV2()**, si recordamos este método no hace uso del **@SessionAttributes(value = "product")**
+entonces de alguna manera necesitamos tener la imagen en el formulario cuando un producto sea editado, es similar al
+porqué estamos usando el ``<input type="hidden" th:if="${product.id != null}" th:field="*{id}">``, es decir, estos
+campos solo nos serán útiles cuando se hace uso del método handler **editV2**, mientras que si usamos el método **edit**
+no sería necesario tenerlos.
+
+Finalmente, implementamos el ProductController para subir la imagen:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omited code */
+    @Value("${config.uploads.path}")
+    private String uploadsPath;
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus,
+                             Model model, @RequestPart FilePart imageFile) { //<-- Se agregó el @RequestPart FilePart imageFile
+        /* omited code */
+
+        return this.productService.findCategory(product.getCategory().getId())
+                .flatMap(categoryDB -> {
+                    /* omitted code */
+                    if (!imageFile.filename().isBlank()) { // Comprobamos que el usuario haya seleccionado una imagen
+                        String filename = UUID.randomUUID().toString() + "-" + imageFile.filename()
+                                .replace(" ", "")
+                                // Este es un hack para que funcione en internet explorer 10 y microsoft edge
+                                .replace(":", "")
+                                .replace("\\", "");
+                        product.setImage(filename);
+                    }
+                    product.setCategory(categoryDB);
+                    return this.productService.saveProduct(product);
+                }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .flatMap(productDB -> {
+                    if (!imageFile.filename().isBlank()) {
+                        return imageFile.transferTo(new File(this.uploadsPath + productDB.getImage())); // Aquí es donde se sube la imagen a nuestra carpeta de destino
+                    }
+                    return Mono.empty();
+                })
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* omited code */
+}
+````
+
+Con este parámetro en el método del controlador ``@RequestPart FilePart imageFile`` recibimos la imagen que viene desde
+el formulario.
+
+## Añadiendo vista de detalle
+
+Creamos la vista **details.html** que será accedida desde la lista de productos:
+
+````html
+
+<div class="card" style="width: 18rem;">
+    <img src="..." class="card-img-top" alt="...">
+    <div class="card-body">
+        <h5 class="card-title" th:text="${product.name}"></h5>
+        <p class="card-text" th:text="'Id: ' + ${product.id}"></p>
+        <p class="card-text"
+           th:text="'Precio: S/ ' + ${#numbers.formatDecimal(product.price, 1, 'DEFAULT', 2, 'DEFAULT')}"></p>
+        <p class="card-text" th:text="'Fecha: ' + ${#temporals.format(product.createAt, 'dd/MM/yyyy')}"></p>
+    </div>
+</div>
+````
+
+En el **ProductController** agregamos el método handler que mostrará la vista detalles de un producto seleccionado:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @GetMapping(path = "/details/{id}")
+    public Mono<String> details(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(productDB -> {
+                    LOG.info("Producto: {}", productDB);
+                    model.addAttribute("product", productDB);
+                    model.addAttribute("title", "Detalles del producto");
+                })
+                .switchIfEmpty(Mono.just(new Product())) // (1)
+                .flatMap(productDB -> {
+                    if (productDB.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.empty();
+                })
+                .then(Mono.just("details")) // (2)
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto+para+ver+sus+detalles"));
+    }
+}
+````
+
+**NOTA**
+
+- El **(1) switchIfEmpty()**, es lo mismo que el **defaultIfEmpty()** con la diferencia de que el **switchIfEmpty()**
+  requiere que se le pase un Mono, mientras que el **defaultIfEmpty()** se le pasa directamente el objeto y por debajo
+  el **defaultIfEmpty()** lo convierte en un Mono.
+- El **(2) then()**, es lo mismo que el **thenReturn()** con la diferencia de que el **then()** requiere que se le pase
+  un Mono, mientras que al **thenReturn()** se le pasa el objeto directamente y por debajo hará la conversión a un Mono.
+
+## Añadiendo ver foto
+
+En el **ProductController** creamos el método handler que nos devolverá la imagen correspondiente al producto
+seleccionado:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @GetMapping(path = "/uploads/image/{imageName:.+}") // (1)
+    public Mono<ResponseEntity<Resource>> showImage(@PathVariable String imageName) throws MalformedURLException {
+        Path absolutePath = Paths.get(this.uploadsPath).resolve(imageName).toAbsolutePath();
+        URI uri = absolutePath.toUri();
+
+        LOG.info("absolutePath: {}", absolutePath);
+        LOG.info("uri: {}", uri);
+
+        Resource resource = new UrlResource(uri);
+        return Mono.just(ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + resource.getFilename() + "\"")
+                .body(resource));
+    }
+}
+````
+
+Como se observa, el tipo de retorno es un **Mono** que envuelve a un **ResponseEntity** que a su vez envuelve a un
+**Resource** que es el recurso que queremos devolver, en nuestro caso la imagen. Es decir, este controlador recibe
+solicitudes para mostrar imágenes almacenadas en una ubicación específica en el servidor. La imagen se recupera, **se
+envuelve en una respuesta HTTP** y se devuelve al cliente para su visualización o descarga.
+
+**(1)** si observamos el path variable ``{imageName:.+}``, veremos que **es una expresión regular** para poder colocar
+la extensión de la imagen, es decir, cuando se llame a ese endpoint se llamaría de esta manera:
+
+````
+http://localhost:8080/uploads/image/7a6eaa79-b5b0-4978-82a1-905337bbcee9-computadora.png
+````
+
+Ahora necesitamos agregar la etiqueta ``<img>`` en nuestro **details.html** para mostrar la imagen siempre y cuando el
+producto tenga una:
+
+````html
+<img th:if="${product.image != null && #strings.length(product.image) > 0}"
+     th:src="@{/uploads/image/} + ${product.image}" class="card-img-top w-100" th:alt="${product.name}">
+````
