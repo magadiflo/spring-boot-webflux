@@ -1445,3 +1445,60 @@ public class ProductController {
 
 Con este parámetro en el método del controlador ``@RequestPart FilePart imageFile`` recibimos la imagen que viene desde
 el formulario.
+
+## Añadiendo vista de detalle
+
+Creamos la vista **details.html** que será accedida desde la lista de productos:
+
+````html
+
+<div class="card" style="width: 18rem;">
+    <img src="..." class="card-img-top" alt="...">
+    <div class="card-body">
+        <h5 class="card-title" th:text="${product.name}"></h5>
+        <p class="card-text" th:text="'Id: ' + ${product.id}"></p>
+        <p class="card-text"
+           th:text="'Precio: S/ ' + ${#numbers.formatDecimal(product.price, 1, 'DEFAULT', 2, 'DEFAULT')}"></p>
+        <p class="card-text" th:text="'Fecha: ' + ${#temporals.format(product.createAt, 'dd/MM/yyyy')}"></p>
+    </div>
+</div>
+````
+
+En el **ProductController** agregamos el método handler que mostrará la vista detalles de un producto seleccionado:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @GetMapping(path = "/details/{id}")
+    public Mono<String> details(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(productDB -> {
+                    LOG.info("Producto: {}", productDB);
+                    model.addAttribute("product", productDB);
+                    model.addAttribute("title", "Detalles del producto");
+                })
+                .switchIfEmpty(Mono.just(new Product())) // (1)
+                .flatMap(productDB -> {
+                    if (productDB.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.empty();
+                })
+                .then(Mono.just("details")) // (2)
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto+para+ver+sus+detalles"));
+    }
+}
+````
+
+**NOTA**
+
+- El **(1) switchIfEmpty()**, es lo mismo que el **defaultIfEmpty()** con la diferencia de que el **switchIfEmpty()**
+  requiere que se le pase un Mono, mientras que el **defaultIfEmpty()** se le pasa directamente el objeto y por debajo
+  el **defaultIfEmpty()** lo convierte en un Mono.
+- El **(2) then()**, es lo mismo que el **thenReturn()** con la diferencia de que el **then()** requiere que se le pase
+  un Mono, mientras que al **thenReturn()** se le pasa el objeto directamente y por debajo hará la conversión a un Mono.
+

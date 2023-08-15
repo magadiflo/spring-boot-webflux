@@ -171,4 +171,23 @@ public class ProductController {
                 .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto"));
     }
 
+    @GetMapping(path = "/details/{id}")
+    public Mono<String> details(@PathVariable String id, Model model) {
+        return this.productService.findById(id)
+                .doOnNext(productDB -> {
+                    LOG.info("Producto: {}", productDB);
+                    model.addAttribute("product", productDB);
+                    model.addAttribute("title", "Detalles del producto");
+                })
+                .switchIfEmpty(Mono.just(new Product())) // Es lo mismo que el defaultIfEmpty, solo que con el swithIfEmpty aquí pasamos un mono
+                .flatMap(productDB -> {
+                    if (productDB.getId() == null) {
+                        return Mono.error(() -> new InterruptedException("No existe el producto"));
+                    }
+                    return Mono.empty();
+                })
+                .then(Mono.just("details"))// es lo mismo que el thenReturn, solo que con el then pasamos un mono
+                .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto+para+ver+sus+detalles"));
+    }
+
 }

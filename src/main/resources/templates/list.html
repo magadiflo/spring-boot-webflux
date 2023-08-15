@@ -23,17 +23,21 @@
             <th>Creación</th>
             <th>Categoría</th>
             <th>Editar</th>
+            <th>Editar v2</th>
+            <th>Detalles</th>
+            <th>Eliminar</th>
         </tr>
         </thead>
         <tbody>
         <tr th:each="product: ${products}">
-            <td th:text="${product.id}"></td>
+            <td th:text="${#strings.abbreviate(product.id, 8)}"></td>
             <td th:text="${product.name}"></td>
-            <td th:text="${product.price}"></td>
-            <td th:text="${product.createAt}"></td>
+            <td th:text="${#numbers.formatCurrency(product.price)}"></td>
+            <td th:text="${#temporals.format(product.createAt, 'dd/MM/yyyy')}"></td>
             <td th:text="${product.category.name}"></td>
             <td><a th:href="@{/form/} + ${product.id}">editar</a></td>
             <td><a th:href="@{/form-v2/} + ${product.id}">editar v2</a></td>
+            <td><a th:href="@{/details/} + ${product.id}" class="btn btn-sm btn-warning">detalles</a></td>
             <td><a th:href="@{/delete/} + ${product.id}" onclick="return confirm('¿Seguro que desea eliminar?')"
                    class="btn btn-sm btn-danger">eliminar</a>
             </td>
