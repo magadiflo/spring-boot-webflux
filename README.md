@@ -1334,3 +1334,114 @@ public class ProductController {
     /* omitted code*/
 }
 ````
+
+## Upload de imagen
+
+Agregamos el atributo image a la clase Producto, este atributo almacenará el nombre de la imagen que se seleccione para
+el producto.
+
+````java
+
+@Document(collection = "products")
+public class Product {
+    /* omitted code */
+    private String image; // Atributo que no está mapeado en el formulario
+    /* setters and getters */
+}
+````
+
+En el **application.properties** colocaremos la ruta donde las imágenes serán subidas. Lo colocamos aquí para que la
+aplicación sea más flexible y la ruta no esté hardcodeada.
+
+````properties
+config.uploads.path=M://PROGRAMACION//DESARROLLO_JAVA_SPRING//INTELLIJ_IDEA//01.udemy//02.udemy_andres_guzman//05.repaso_programacion_reactiva//uploads//
+````
+
+Ahora modificaremos nuestro formulario html para agregarle el elemento ``<input type="file">`` para poder seleccionar la
+imagen del producto.
+
+**NOTA**
+> Si el formulario tiene lo siguiente **method="post"**, el **enctype** es el tipo MIME del envío del formulario.
+> Posibles valores:<br>
+>
+> **application/x-www-form-urlencoded:** El valor por defecto.<br>
+> **multipart/form-data:** Use este valor si el formulario contiene elementos ``<input>`` con ``type=file``.
+> **text/plain:** Útil para propósitos de depuración.
+
+````html
+
+<form th:action="@{/products/form}" th:object="${product}" method="post" enctype="multipart/form-data">
+    <input type="hidden" th:if="${product.id != null}" th:field="*{id}"> <!-- para el edit-v2 -->
+    <input type="hidden" th:if="${product.image != null}" th:field="*{image}"><!-- para el edit-v2 -->
+    <!-- other inputs elements -->
+    <div class="mb-3">
+        <label for="imageFile" class="form-label">Seleccione una imagen</label>
+        <input type="file" id="imageFile" name="imageFile" class="form-control form-control-lg">
+    </div>
+    <button type="submit" class="btn btn-primary" th:text="${btnText}"></button>
+</form>
+````
+
+Como se observa en el formulario html se agregó el ``enctype="multipart/form-data"``, eso significa que el formulario
+tiene el elemento ``<input type="file">`` para subir archivos o como en nuestro caso, subir imágenes.
+
+El input que se agregó fue: ``<input type="file" id="imageFile" name="imageFile">`` lo que significa que el método
+handler del controlador espera recibir un elemento llamado **imageFile**. Este campo no está mapeado a la clase
+producto, recordemos que nuestra clase Producto tiene el atributo **image** y aquí estamos utilizando el atributo
+**imageFile**. Simplemente, usamos el **imageFile** para pasar la imagen al controlador y una vez tengamos la imagen
+en el controlador, lo subiremos al servidor donde será almacenado mientras que el nombre de la imagen lo pasaremos por
+el método set al producto.
+
+Otra cosa que podemos observar es que se agregó el
+``<input type="hidden" th:if="${product.image != null}" th:field="*{image}">``, esto es por si utilizamos el método
+del controlador **editV2()**, si recordamos este método no hace uso del **@SessionAttributes(value = "product")**
+entonces de alguna manera necesitamos tener la imagen en el formulario cuando un producto sea editado, es similar al
+porqué estamos usando el ``<input type="hidden" th:if="${product.id != null}" th:field="*{id}">``, es decir, estos
+campos solo nos serán útiles cuando se hace uso del método handler **editV2**, mientras que si usamos el método **edit**
+no sería necesario tenerlos.
+
+Finalmente, implementamos el ProductController para subir la imagen:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omited code */
+    @Value("${config.uploads.path}")
+    private String uploadsPath;
+
+    @PostMapping(path = "/form")
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus,
+                             Model model, @RequestPart FilePart imageFile) { //<-- Se agregó el @RequestPart FilePart imageFile
+        /* omited code */
+
+        return this.productService.findCategory(product.getCategory().getId())
+                .flatMap(categoryDB -> {
+                    /* omitted code */
+                    if (!imageFile.filename().isBlank()) { // Comprobamos que el usuario haya seleccionado una imagen
+                        String filename = UUID.randomUUID().toString() + "-" + imageFile.filename()
+                                .replace(" ", "")
+                                // Este es un hack para que funcione en internet explorer 10 y microsoft edge
+                                .replace(":", "")
+                                .replace("\\", "");
+                        product.setImage(filename);
+                    }
+                    product.setCategory(categoryDB);
+                    return this.productService.saveProduct(product);
+                }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .flatMap(productDB -> {
+                    if (!imageFile.filename().isBlank()) {
+                        return imageFile.transferTo(new File(this.uploadsPath + productDB.getImage())); // Aquí es donde se sube la imagen a nuestra carpeta de destino
+                    }
+                    return Mono.empty();
+                })
+                .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
+    }
+    /* omited code */
+}
+````
+
+Con este parámetro en el método del controlador ``@RequestPart FilePart imageFile`` recibimos la imagen que viene desde
+el formulario.

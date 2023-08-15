@@ -19,7 +19,7 @@ public class Product {
     private Double price;
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate createAt;
-
+    private String image;
     @Valid //Le decimos que este objeto se tiene que validar
     private Category category;
 
@@ -68,6 +68,14 @@ public class Product {
         this.createAt = createAt;
     }
 
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
+
     public Category getCategory() {
         return category;
     }
@@ -83,6 +91,7 @@ public class Product {
         sb.append(", name='").append(name).append('\'');
         sb.append(", price=").append(price);
         sb.append(", createAt=").append(createAt);
+        sb.append(", image='").append(image).append('\'');
         sb.append(", category=").append(category);
         sb.append('}');
         return sb.toString();

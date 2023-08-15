@@ -6,6 +6,8 @@ import com.magadiflo.webflux.app.models.services.IProductService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -15,8 +17,10 @@ import org.thymeleaf.spring6.context.webflux.ReactiveDataDriverContextVariable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.File;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @SessionAttributes(value = "product")
 @Controller
@@ -24,6 +28,8 @@ import java.time.LocalDate;
 public class ProductController {
     private final static Logger LOG = LoggerFactory.getLogger(ProductController.class);
     private final IProductService productService;
+    @Value("${config.uploads.path}")
+    private String uploadsPath;
 
     public ProductController(IProductService productService) {
         this.productService = productService;
@@ -84,7 +90,8 @@ public class ProductController {
     }
 
     @PostMapping(path = "/form")
-    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus, Model model) {
+    public Mono<String> save(@Valid Product product, BindingResult result, SessionStatus sessionStatus,
+                             Model model, @RequestPart FilePart imageFile) {
         if (result.hasErrors()) {
             model.addAttribute("title", "Errores en el formulario de producto");
             model.addAttribute("btnText", "Guardar");
@@ -97,9 +104,23 @@ public class ProductController {
                     if (product.getCreateAt() == null) {
                         product.setCreateAt(LocalDate.now());
                     }
+                    if (!imageFile.filename().isBlank()) {
+                        String filename = UUID.randomUUID().toString() + "-" + imageFile.filename()
+                                .replace(" ", "")
+                                // Este es un hack para que funcione en internet explorer 10 y microsoft edge
+                                .replace(":", "")
+                                .replace("\\", "");
+                        product.setImage(filename);
+                    }
                     product.setCategory(categoryDB);
                     return this.productService.saveProduct(product);
                 }).doOnNext(p -> LOG.info("Producto guardado: {}", p))
+                .flatMap(productDB -> {
+                    if (!imageFile.filename().isBlank()) {
+                        return imageFile.transferTo(new File(this.uploadsPath + productDB.getImage()));
+                    }
+                    return Mono.empty();
+                })
                 .thenReturn("redirect:/list?success=Producto+guardado+con+éxito");
     }
 
