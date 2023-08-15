@@ -7,6 +7,10 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,6 +22,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -190,4 +198,17 @@ public class ProductController {
                 .onErrorResume(throwable -> Mono.just("redirect:/list?error=no+existe+el+producto+para+ver+sus+detalles"));
     }
 
+    @GetMapping(path = "/uploads/image/{imageName:.+}")
+    public Mono<ResponseEntity<Resource>> showImage(@PathVariable String imageName) throws MalformedURLException {
+        Path absolutePath = Paths.get(this.uploadsPath).resolve(imageName).toAbsolutePath();
+        URI uri = absolutePath.toUri();
+
+        LOG.info("absolutePath: {}", absolutePath);
+        LOG.info("uri: {}", uri);
+
+        Resource resource = new UrlResource(uri);
+        return Mono.just(ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + resource.getFilename() + "\"")
+                .body(resource));
+    }
 }

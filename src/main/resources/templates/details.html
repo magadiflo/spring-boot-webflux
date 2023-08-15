@@ -13,7 +13,8 @@
     <div class="row">
         <div class="col-12 col-sm-6 col-md-4">
             <div class="card" style="width: 18rem;">
-                <img src="..." class="card-img-top" alt="...">
+                <img th:if="${product.image != null && #strings.length(product.image) > 0}"
+                     th:src="@{/uploads/image/} + ${product.image}" class="card-img-top w-100" th:alt="${product.name}">
                 <div class="card-body">
                     <h5 class="card-title" th:text="${product.name}"></h5>
                     <p class="card-text" th:text="'Id: ' + ${product.id}"></p>

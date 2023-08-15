@@ -1502,3 +1502,50 @@ public class ProductController {
 - El **(2) then()**, es lo mismo que el **thenReturn()** con la diferencia de que el **then()** requiere que se le pase
   un Mono, mientras que al **thenReturn()** se le pasa el objeto directamente y por debajo hará la conversión a un Mono.
 
+## Añadiendo ver foto
+
+En el **ProductController** creamos el método handler que nos devolverá la imagen correspondiente al producto
+seleccionado:
+
+````java
+
+@SessionAttributes(value = "product")
+@Controller
+@RequestMapping(path = {"/", "/products"})
+public class ProductController {
+    /* omitted code */
+    @GetMapping(path = "/uploads/image/{imageName:.+}") // (1)
+    public Mono<ResponseEntity<Resource>> showImage(@PathVariable String imageName) throws MalformedURLException {
+        Path absolutePath = Paths.get(this.uploadsPath).resolve(imageName).toAbsolutePath();
+        URI uri = absolutePath.toUri();
+
+        LOG.info("absolutePath: {}", absolutePath);
+        LOG.info("uri: {}", uri);
+
+        Resource resource = new UrlResource(uri);
+        return Mono.just(ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + resource.getFilename() + "\"")
+                .body(resource));
+    }
+}
+````
+
+Como se observa, el tipo de retorno es un **Mono** que envuelve a un **ResponseEntity** que a su vez envuelve a un
+**Resource** que es el recurso que queremos devolver, en nuestro caso la imagen. Es decir, este controlador recibe
+solicitudes para mostrar imágenes almacenadas en una ubicación específica en el servidor. La imagen se recupera, **se
+envuelve en una respuesta HTTP** y se devuelve al cliente para su visualización o descarga.
+
+**(1)** si observamos el path variable ``{imageName:.+}``, veremos que **es una expresión regular** para poder colocar
+la extensión de la imagen, es decir, cuando se llame a ese endpoint se llamaría de esta manera:
+
+````
+http://localhost:8080/uploads/image/7a6eaa79-b5b0-4978-82a1-905337bbcee9-computadora.png
+````
+
+Ahora necesitamos agregar la etiqueta ``<img>`` en nuestro **details.html** para mostrar la imagen siempre y cuando el
+producto tenga una:
+
+````html
+<img th:if="${product.image != null && #strings.length(product.image) > 0}"
+     th:src="@{/uploads/image/} + ${product.image}" class="card-img-top w-100" th:alt="${product.name}">
+````
