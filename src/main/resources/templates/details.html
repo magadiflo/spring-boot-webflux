@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${title}"></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+</head>
+<body>
+<main class="container">
+    <h1 th:text="${title}" class="my-3 border-bottom"></h1>
+    <a th:href="@{/list}">Listar productos</a>
+    <div class="row">
+        <div class="col-12 col-sm-6 col-md-4">
+            <div class="card" style="width: 18rem;">
+                <img th:if="${product.image != null && #strings.length(product.image) > 0}"
+                     th:src="@{/uploads/image/} + ${product.image}" class="card-img-top w-100" th:alt="${product.name}">
+                <div class="card-body">
+                    <h5 class="card-title" th:text="${product.name}"></h5>
+                    <p class="card-text" th:text="'Id: ' + ${product.id}"></p>
+                    <p class="card-text"
+                       th:text="'Precio: S/ ' + ${#numbers.formatDecimal(product.price, 1, 'DEFAULT', 2, 'DEFAULT')}"></p>
+                    <p class="card-text" th:text="'Fecha: ' + ${#temporals.format(product.createAt, 'dd/MM/yyyy')}"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
+        crossorigin="anonymous"></script>
+</body>
+</html>
